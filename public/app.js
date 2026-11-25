@@ -116,7 +116,7 @@ function highlightZone() {
   renderEvidence();
   const selected = currentLake?.zones.find(item => item.id === zone.value);
   document.querySelector('#selected-shoreline').hidden = !selected;
-  document.querySelector('#selected-shoreline-label').textContent = selected ? currentLake.name + ' · ' + selected.name : '';
+  document.querySelector('#selected-shoreline-label').textContent = selected ? currentLake.name + ' � ' + selected.name : '';
   updateLakeProfile();
 }
 
@@ -142,7 +142,7 @@ function lakeEndpoint(path, zoneId) {
 function renderEvidence() {
   evidenceContent.replaceChildren();
   if (!dashboard) {
-    evidenceContent.append(textElement('p', 'Loading zone evidence…'));
+    evidenceContent.append(textElement('p', 'Loading zone evidence.'));
     return;
   }
   const selected = dashboard.zones.find(item => item.zoneId === zone.value) ??
@@ -152,14 +152,14 @@ function renderEvidence() {
     evidenceContent.append(textElement('p', 'No matching shoreline observations in the last 48 hours.'));
     return;
   }
-  evidenceContent.append(textElement('p', selected.name + ' · ' + hotspotLabels[selected.status], 'evidence-zone'));
+  evidenceContent.append(textElement('p', selected.name + ' � ' + hotspotLabels[selected.status], 'evidence-zone'));
   if (!selected.categories.length) evidenceContent.append(textElement('p', 'No eligible reports in this zone.'));
   for (const group of selected.categories) {
     const card = document.createElement('article');
     card.className = 'evidence-group';
     const count = group.evidenceCount + (group.evidenceCount === 1 ? ' photo' : ' photos');
     card.append(textElement('h4', categoryLabels[group.category]),
-      textElement('p', hotspotLabels[group.status] + ' · ' + count + ' in 48 hours'));
+      textElement('p', hotspotLabels[group.status] + ' � ' + count + ' in 48 hours'));
     const list = document.createElement('ul');
     for (const report of group.reports) {
       const row = document.createElement('li');
@@ -169,7 +169,7 @@ function renderEvidence() {
       photo.alt = 'Evidence photo from ' + selected.name;
       const summary = document.createElement('div');
       summary.append(textElement('strong', report.cue),
-        textElement('p', formatTime.format(new Date(report.observedAt)) + ' IST · ' + sourceLabels[report.analysisSource]),
+        textElement('p', formatTime.format(new Date(report.observedAt)) + ' IST � ' + sourceLabels[report.analysisSource]),
         textElement('p', report.id));
       appendReportContext(summary, report);
       row.append(photo, summary);
@@ -258,12 +258,12 @@ async function loadHotspots() {
 async function loadReadings() {
   const revision = ++readingRequest;
   const feedback = document.querySelector('#reading-status');
-  feedback.textContent = 'Loading readings…';
+  feedback.textContent = 'Loading readings.';
   try {
     const view = await getJson(lakeEndpoint('/api/readings', readingZone.value));
     if (revision !== readingRequest) return;
     renderReadings(view.items, formatTime);
-    feedback.textContent = view.items.length ? currentLake.name + ' · ' + view.items.length + ' recorded observations' :
+    feedback.textContent = view.items.length ? currentLake.name + ' � ' + view.items.length + ' recorded observations' :
       'No readings have been saved for this view.';
   } catch {
     if (revision !== readingRequest) return;
@@ -338,8 +338,8 @@ function updateLakeProfile() {
   const watch = dashboard?.zones.filter(item => item.status !== 'none').length;
   document.querySelector('#profile-observations').textContent =
     currentLake.zones.length + ' reporting sectors' +
-    (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent observations') +
-    (watch ? ' · ' + watch + ' sectors with active evidence' : '');
+    (recentReportCount === undefined ? '' : ' � ' + recentReportCount + ' recent observations') +
+    (watch ? ' � ' + watch + ' sectors with active evidence' : '');
   document.querySelector('#lake-reference').href = currentLake.reference;
   const reportLink = document.querySelector('#profile-report');
   const target = new URL('/pilot.html?role=citizen', location.origin);
@@ -439,8 +439,8 @@ document.addEventListener('keydown', event => {
 
 function downloadConcern(concern, label) {
   const text = [
-    'JalNetra citizen concern · Submitted by a member of the public', concern.id,
-    concern.lakeName + ' · ' + concern.zoneName, label, 'Recorded ' + formatTime.format(new Date(concern.createdAt)) + ' IST',
+    'JalNetra citizen concern � Submitted by a member of the public', concern.id,
+    concern.lakeName + ' � ' + concern.zoneName, label, 'Recorded ' + formatTime.format(new Date(concern.createdAt)) + ' IST',
     '', concern.description, '', 'This observation has not been independently verified.',
   ].join('\n');
   const link = document.createElement('a');
@@ -452,7 +452,7 @@ function downloadConcern(concern, label) {
 
 async function loadConcerns() {
   const load = ++concernLoad;
-  concernList.replaceChildren(textElement('li', 'Loading saved concerns…'));
+  concernList.replaceChildren(textElement('li', 'Loading saved concerns.'));
   try {
     const items = await getJson(lakeEndpoint('/api/concerns'));
     if (load !== concernLoad) return;
@@ -463,7 +463,7 @@ async function loadConcerns() {
       const button = textElement('button', 'Download concern', 'inline-action');
       button.type = 'button';
       button.addEventListener('click', () => downloadConcern(item, label));
-      entry.append(textElement('strong', item.zoneName + ' · ' + label),
+      entry.append(textElement('strong', item.zoneName + ' � ' + label),
         textElement('p', item.description), textElement('p', item.id), button);
       concernList.append(entry);
     }
@@ -482,7 +482,7 @@ concernForm.addEventListener('submit', async event => {
   const id = concernRequest;
   const fields = Object.fromEntries(new FormData(concernForm));
   concernSubmit.disabled = true;
-  concernStatus.textContent = 'Saving concern…';
+  concernStatus.textContent = 'Saving concern.';
   try {
     const concern = await getJson(lakeEndpoint('/api/concerns'),
       jsonRequest('POST', { ...fields, requestId: id }));
@@ -541,7 +541,7 @@ function setLake(id) {
   recentReportCount = undefined;
   document.querySelector('#map-help').textContent = geographic
     ? 'Click a shoreline sector or its marker to set the location for your next upload.'
-    : 'Select a marker to see that zone’s evidence or choose a zone in the form.';
+    : 'Select a marker to see that zone's evidence or choose a zone in the form.';
   document.querySelector('#map-title').textContent = selected.name;
   document.querySelector('#map-kind').textContent = geographic ? 'Approximate zones' : 'Illustrative';
   document.querySelector('#illustrative-map').toggleAttribute('hidden', geographic);
@@ -594,6 +594,7 @@ function setLake(id) {
   window.history.replaceState(null, '', url);
   const lakeParam = geographic ? '&lake=' + encodeURIComponent(id) : '';
   document.querySelector('#shared-reporting').href = '/pilot.html?role=citizen' + lakeParam;
+  document.querySelector('#citizen-signup-link').href = '/pilot.html?role=citizen' + lakeParam + '#citizen-signup';
   document.querySelector('#operator-reporting').href = '/pilot.html?role=operator' + lakeParam + '#pilot-operator';
   zonesLoaded = true;
   highlightZone();
@@ -657,20 +658,20 @@ async function loadHistory() {
       image.loading = 'lazy';
       const detail = document.createElement('div');
       const title = document.createElement('strong');
-      title.textContent = item.zoneName + ' · ' + formatTime.format(new Date(item.observedAt));
+      title.textContent = item.zoneName + ' � ' + formatTime.format(new Date(item.observedAt));
       const id = document.createElement('p');
       id.textContent = item.id;
       detail.append(title, id);
       appendReportContext(detail, item);
       for (const detection of item.detections) {
         const cue = document.createElement('p');
-        cue.textContent = categoryLabels[detection.category] + ' — ' + detection.cue;
+        cue.textContent = categoryLabels[detection.category] + ' - ' + detection.cue;
         detail.append(cue);
       }
       const notes = [sourceLabels[item.analysisSource], item.reviewReason].filter(Boolean);
       if (notes.length) {
         const reason = document.createElement('p');
-        reason.textContent = notes.join(' · ');
+        reason.textContent = notes.join(' � ');
         detail.append(reason);
       }
       if (item.canRetry) {
@@ -745,7 +746,7 @@ sampleSelect.addEventListener('change', async () => {
   photoInput.value = '';
   photoInput.setCustomValidity('');
   photoInput.required = true;
-  setStatus('Loading sample…');
+  setStatus('Loading sample.');
   try {
     const response = await fetch(sample.url);
     if (!response.ok) throw new Error('Sample could not be loaded.');
@@ -800,68 +801,4 @@ rehearsalButton.addEventListener('click', async () => {
     currentDraft = undefined;
     if (draftDialog.open) draftDialog.close();
     rehearsalButton.textContent = 'Restart rehearsal';
-    feedback.textContent = 'North Inlet is on Watch. Select “Foam from a second view” and save it at the same zone.';
-    if (currentLake.id !== 'demo-lake') await setLake('demo-lake');
-    zone.value = 'north-inlet';
-    zone.dispatchEvent(new Event('change', { bubbles: true }));
-    await refreshDashboard();
-  } catch (error) {
-    feedback.textContent = error.message;
-  } finally {
-    rehearsalButton.disabled = false;
-  }
-});
-
-form.addEventListener('submit', async event => {
-  event.preventDefault();
-  if (submit.disabled) return;
-  if (!selectedFile) {
-    setStatus('Choose a photo or a labelled demo sample.', 'error');
-    return;
-  }
-  const payload = new FormData(form);
-  const revision = previewRevision;
-  const observedAt = new Date(times.value);
-  if (!Number.isFinite(observedAt.valueOf())) {
-    setStatus('Choose a valid observation time.', 'error');
-    return;
-  }
-  payload.set('requestId', requestId);
-  payload.set('observedAt', observedAt.toISOString());
-  submit.disabled = true;
-  submit.textContent = 'Saving…';
-  setStatus('');
-  const controls = [...form.elements, lakeSelect].filter(control => control !== submit && !control.disabled);
-  for (const control of [...controls, ...markers.children]) control.disabled = true;
-  try {
-    const { result, error } = await preparedPhoto;
-    if (error) throw error;
-    payload.set('photo', result.pixels, 'photo.rgb');
-    payload.set('photoWidth', String(result.width));
-    payload.set('photoHeight', String(result.height));
-    const report = await getJson('/api/reports', { method: 'POST', body: payload });
-    if (revision === previewRevision) {
-      form.reset();
-      zone.value = report.zoneId;
-      photoInput.required = true;
-      ++previewRevision;
-      clearPreview();
-      highlightZone();
-      updateTimestamp();
-      requestId = crypto.randomUUID();
-    }
-    setStatus('Observation saved. ' + statusLabels[report.status] + '. Report ID ' + report.id, 'success');
-    await refreshDashboard();
-  } catch (error) {
-    setStatus(error.message || 'The report could not be saved. Try again.', 'error');
-  } finally {
-    for (const control of [...controls, ...markers.children]) control.disabled = false;
-    submit.disabled = false;
-    submit.textContent = 'Save observation';
-  }
-});
-
-updateTimestamp();
-loadMode().then(loadLakes)
-  .catch(() => setStatus('The demo could not be loaded. Refresh to try again.', 'error'));
-
+    feedback.textContent = 'North Inlet is on Watch. Select 
