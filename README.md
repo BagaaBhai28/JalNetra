@@ -46,6 +46,10 @@ Use Node.js 24 and the repository's `vercel.json`. Connect a **private Vercel Bl
 
 The current production site was deployed directly from this repository's source. Automatic redeploys from GitHub require connecting the repository to the Vercel project. The automated test workflow checks code and does not publish the site.
 
+### Field pilot backend
+
+The Supabase migration in `supabase/migrations` provisions lake-scoped memberships, report storage, and a private evidence bucket for the field pilot. Vercel exposes a read-only readiness check at `/api/pilot/status` and authenticated report reads at `/api/pilot/reports`. These routes use `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The public rehearsal keeps its own data. Pilot sign-in and a shared dashboard remain open in the implementation roadmap.
+
 ## What the project solves
 
 Lake observations often arrive as isolated photos or messages. To follow up, a civic operator needs a location, an observation time, and a way to connect related reports. JalNetra keeps those details together and shows exactly which reports support an inspection request.

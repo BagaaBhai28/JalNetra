@@ -1,5 +1,6 @@
 import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from '@vercel/blob';
 import { createHostedHandler, SnapshotConflict } from '../src/hosted.js';
+import { createPilotHandler } from '../src/pilot.js';
 
 const store = {
   async read(path, { forWrite }) {
@@ -36,4 +37,14 @@ const store = {
   },
 };
 
-export default { fetch: createHostedHandler(store) };
+const hosted = createHostedHandler(store);
+const pilot = createPilotHandler({
+  url: process.env.SUPABASE_URL,
+  publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+});
+
+export default {
+  async fetch(request) {
+    return (await pilot(request)) ?? hosted(request);
+  },
+};
