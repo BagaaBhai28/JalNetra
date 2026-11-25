@@ -11,7 +11,7 @@
 <body>
   <header class="top">
     <a class="brand" href="/" aria-label="JalNetra home"><span class="brand-icon" aria-hidden="true">≈</span> JalNetra</a>
-    <span class="scope"><span></span> Local demo</span>
+    <span id="app-mode" class="scope"><span></span> Local mode</span>
   </header>
   <main>
     <section class="intro" aria-labelledby="title">
@@ -48,6 +48,11 @@
           <div class="upload">
             <input id="photo" type="file" accept="image/jpeg,image/png" aria-describedby="photo-help" required>
             <p id="photo-help">JPEG or PNG, up to 5 MB</p>
+            <div id="sample-controls" hidden>
+              <label for="demo-sample">Offline demo images</label>
+              <select id="demo-sample"><option value="">Choose a labelled sample</option></select>
+              <p>Illustrated fixtures use simulated results.</p>
+            </div>
             <img id="preview" alt="Selected shoreline photo" hidden>
           </div>
           <details>
@@ -72,3 +77,4 @@
   </main>
 </body>
 </html>
+

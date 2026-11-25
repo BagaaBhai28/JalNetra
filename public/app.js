@@ -10,8 +10,17 @@ const historyStatus = document.querySelector('#history-status');
 const reports = document.querySelector('#report-list');
 let requestId = crypto.randomUUID();
 let previewUrl;
+let selectedFile;
 let preparedPhoto;
 let previewRevision = 0;
+const sampleControl = document.querySelector('#sample-controls');
+const sampleSelect = document.querySelector('#demo-sample');
+const statusLabels = {
+  pending: 'Pending analysis', needs_review: 'Needs review', classified: 'Signs detected',
+  no_target_signs: 'No target signs detected',
+};
+const categoryLabels = { foam: 'Foam', algae_like_growth: 'Algae-like growth', dumping: 'Dumping' };
+const sourceLabels = { simulated: 'Simulated', captured_replay: 'Demo replay', live_model: 'Live vision' };
 const maxPhotoBytes = 5 * 1024 * 1024;
 const formatTime = new Intl.DateTimeFormat('en-IN', {
   dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata',
@@ -43,6 +52,7 @@ function setStatus(message, mood = '') {
 function clearPreview() {
   if (previewUrl) URL.revokeObjectURL(previewUrl);
   previewUrl = undefined;
+  selectedFile = undefined;
   preparedPhoto = undefined;
   preview.hidden = true;
   preview.removeAttribute('src');
@@ -122,9 +132,38 @@ async function loadHistory() {
       const id = document.createElement('p');
       id.textContent = item.id;
       detail.append(title, id);
+      for (const detection of item.detections) {
+        const cue = document.createElement('p');
+        cue.textContent = categoryLabels[detection.category] + ' — ' + detection.cue;
+        detail.append(cue);
+      }
+      const notes = [sourceLabels[item.analysisSource], item.reviewReason].filter(Boolean);
+      if (notes.length) {
+        const reason = document.createElement('p');
+        reason.textContent = notes.join(' · ');
+        detail.append(reason);
+      }
+      if (item.canRetry) {
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.className = 'secondary';
+        retry.textContent = 'Retry analysis';
+        retry.addEventListener('click', async () => {
+          retry.disabled = true;
+          try {
+            const updated = await getJson('/api/reports/' + item.id + '/retry', { method: 'POST' });
+            setStatus(statusLabels[updated.status], updated.status === 'needs_review' ? 'error' : 'success');
+            await loadHistory();
+          } catch (error) {
+            setStatus(error.message, 'error');
+            retry.disabled = false;
+          }
+        });
+        detail.append(retry);
+      }
       const label = document.createElement('span');
       label.className = 'tag';
-      label.textContent = item.status === 'pending' ? 'Pending analysis' : item.status.replaceAll('_', ' ');
+      label.textContent = statusLabels[item.status] ?? item.status;
       row.append(image, detail, label);
       reports.append(row);
     }
@@ -137,13 +176,14 @@ async function loadHistory() {
 form.addEventListener('input', () => { requestId = crypto.randomUUID(); });
 form.addEventListener('change', () => { requestId = crypto.randomUUID(); });
 zone.addEventListener('change', highlightZone);
-photoInput.addEventListener('change', async () => {
+function pickPhoto(file) {
   const revision = ++previewRevision;
   clearPreview();
   photoInput.setCustomValidity('');
   setStatus('');
-  const file = photoInput.files[0];
   if (!file) return;
+  selectedFile = file;
+  requestId = crypto.randomUUID();
   preparedPhoto = normalize(file).then(result => {
     if (revision === previewRevision) {
       previewUrl = URL.createObjectURL(file);
@@ -158,11 +198,51 @@ photoInput.addEventListener('change', async () => {
     }
     return { error };
   });
+}
+photoInput.addEventListener('change', () => {
+  sampleSelect.value = '';
+  photoInput.required = true;
+  pickPhoto(photoInput.files[0]);
 });
+
+let samples = [];
+sampleSelect.addEventListener('change', async () => {
+  const sample = samples.find(item => item.id === sampleSelect.value);
+  if (!sample) return;
+  const revision = ++previewRevision;
+  clearPreview();
+  photoInput.value = '';
+  photoInput.setCustomValidity('');
+  photoInput.required = true;
+  setStatus('Loading sample…');
+  try {
+    const response = await fetch(sample.url);
+    if (!response.ok) throw new Error('Sample could not be loaded.');
+    const image = await response.blob();
+    if (revision !== previewRevision) return;
+    photoInput.required = false;
+    pickPhoto(image);
+  } catch (error) {
+    if (revision === previewRevision) setStatus(error.message, 'error');
+  }
+});
+
+async function loadMode() {
+  const mode = await getJson('/api/status');
+  document.querySelector('#app-mode').lastChild.textContent =
+    mode.mode === 'live' ? ' Live vision' : ' Offline demo';
+  samples = mode.samples;
+  sampleControl.hidden = samples.length === 0;
+  for (const sample of samples) sampleSelect.add(new Option(sample.title, sample.id));
+}
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (submit.disabled) return;
+  if (!selectedFile) {
+    setStatus('Choose a photo or a labelled demo sample.', 'error');
+    return;
+  }
   const payload = new FormData(form);
   const revision = previewRevision;
   const observedAt = new Date(times.value);
@@ -186,13 +266,14 @@ form.addEventListener('submit', async event => {
     const report = await getJson('/api/reports', { method: 'POST', body: payload });
     if (revision === previewRevision) {
       form.reset();
+      photoInput.required = true;
       ++previewRevision;
       clearPreview();
       highlightZone();
       updateTimestamp();
       requestId = crypto.randomUUID();
     }
-    setStatus('Observation saved. Report ID ' + report.id, 'success');
+    setStatus('Observation saved. ' + statusLabels[report.status] + '. Report ID ' + report.id, 'success');
     await loadHistory();
   } catch (error) {
     setStatus(error.message || 'The report could not be saved. Try again.', 'error');
@@ -205,4 +286,6 @@ form.addEventListener('submit', async event => {
 
 updateTimestamp();
 loadZones().catch(() => setStatus('The shoreline zones could not be loaded. Refresh to try again.', 'error'));
+loadMode().catch(() => setStatus('Analysis mode could not be loaded. Refresh to try again.', 'error'));
 loadHistory();
+

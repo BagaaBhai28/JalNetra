@@ -1,56 +1,12 @@
 import assert from 'node:assert/strict';
-import { Readable } from 'node:stream';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { inflateSync } from 'node:zlib';
-import { createApp } from '../src/server.js';
+import { formFor, openApp } from '../test-support/http.js';
 
-function formFor(observedAt, changes = {}) {
-  const form = new FormData();
-  const fields = {
-    requestId: 'test-intake-001',
-    zoneId: 'north-inlet',
-    observedAt,
-    photoWidth: '2',
-    photoHeight: '1',
-    ph: '7.2',
-    ...changes,
-  };
-  for (const [key, value] of Object.entries(fields)) form.set(key, value);
-  form.set('photo', new Blob([Uint8Array.of(20, 50, 80, 200, 230, 255)], {
-    type: 'application/octet-stream',
-  }), 'fixture.rgb');
-  return form;
-}
 
-function openApp(dbPath) {
-  const server = createApp({ dbPath });
-  const handle = server.listeners('request')[0];
-  async function request(url, options = {}) {
-    const input = new Request('http://127.0.0.1' + url, options);
-    const body = Buffer.from(await input.arrayBuffer());
-    const req = Object.assign(Readable.from(body.length ? [body] : []), {
-      method: input.method,
-      url,
-      headers: { host: '127.0.0.1', ...Object.fromEntries(input.headers) },
-    });
-    return new Promise((resolve, reject) => {
-      const res = {
-        writeHead(status, headers) {
-          this.status = status;
-          this.headers = headers;
-        },
-        end(data) {
-          resolve(new Response(data, { status: this.status, headers: this.headers }));
-        },
-      };
-      handle(req, res).catch(reject);
-    });
-  }
-  return { request, close: () => server.emit('close') };
-}
 
 test('observations are validated, idempotent and persisted with a readable photo', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'jalnetra-test-'));
@@ -100,3 +56,4 @@ test('observations are validated, idempotent and persisted with a readable photo
     await rm(directory, { recursive: true, force: true });
   }
 });
+

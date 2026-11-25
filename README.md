@@ -8,7 +8,7 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — Phase 1 report intake runs locally. Phase 2 will add vision analysis.
+**Current status** — Report intake and vision analysis run locally. The offline mode uses labelled sample images with simulated results.
 
 ## Run the prototype
 
@@ -18,7 +18,7 @@ Use Node.js 24 or newer from the repository root. Phase 1 uses Node’s built-in
 node src/server.js
 ```
 
-Open `http://127.0.0.1:3000`. Select a shoreline zone, add a JPEG or PNG, and save the observation. The local demo keeps the latest observations in view and saves photos and report IDs in `data/jalnetra.sqlite`. Reports appear as **Pending analysis**.
+Open `http://127.0.0.1:3000`. Select a shoreline zone, add a JPEG or PNG, and save the observation. The local demo keeps the latest observations in view and saves photos and report IDs in `data/jalnetra.sqlite`. Select a sample from **Offline demo images** to see one of the labelled analysis outcomes.
 
 Run the intake regression check with `node --test`. It exercises the request handler and a real SQLite database, including reopening the database.
 
@@ -193,7 +193,7 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-Zone listing, report intake, history, and photo retrieval are implemented. The analysis retry, hotspot, and complaint routes describe upcoming phases. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. The retry route is implemented. The hotspot and complaint routes describe upcoming phases. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|

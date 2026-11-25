@@ -5,6 +5,8 @@ import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
+import { claimAttempt, runAttempt, transact } from './analysis.js';
+import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList } from './vision.js';
 
 const zones = [
   ['north-inlet', 'North Inlet', .45, .24],
@@ -147,7 +149,7 @@ async function validateReport(req, db) {
     throw new InputError(400, 'INVALID_PIXELS', 'The photo pixels do not match the photo size.');
   }
   const pixels = Buffer.from(await photo.arrayBuffer());
-  const hash = createHash('sha256').update(`${width}x${height}:`).update(pixels).digest('hex');
+  const hash = fingerprintPhoto(width, height, pixels);
   const observedAt = new Date(time).toISOString();
   const fingerprint = createHash('sha256').update(
     JSON.stringify([zoneId, observedAt, note, ph, temperature, hash]),
@@ -157,14 +159,23 @@ async function validateReport(req, db) {
 
 const reportFields = `r.id, r.data_mode AS dataMode, r.zone_id AS zoneId, z.name AS zoneName,
   r.observed_at AS observedAt, r.submitted_at AS submittedAt, r.note, r.ph,
-  r.temperature_c AS temperatureC, COALESCE(a.status, 'pending') AS status`;
-function reportView(row) {
-  return { ...row, photoUrl: '/api/reports/' + row.id + '/photo' };
+  r.temperature_c AS temperatureC, r.current_attempt AS attempt, COALESCE(a.status, 'pending') AS status,
+  a.source AS analysisSource, a.review_reason AS reviewReason, a.expires_at AS analysisExpiresAt`;
+function reportView(db, row, vision) {
+  const { attempt, analysisExpiresAt, ...report } = row;
+  return {
+    ...report,
+    photoUrl: '/api/reports/' + row.id + '/photo',
+    canRetry: Boolean(vision && (row.status === 'needs_review' ||
+      (row.status === 'pending' && (!analysisExpiresAt || Date.parse(analysisExpiresAt) <= Date.now())))),
+    detections: db.prepare('SELECT category, cue FROM detection WHERE report_id = ? AND attempt = ? ORDER BY category')
+      .all(row.id, attempt),
+  };
 }
 
-function saveReport(db, report) {
+function saveReport(db, report, mode) {
   const prior = db.prepare(`SELECT id, request_fingerprint FROM report
-    WHERE data_mode = 'demo' AND request_id = ?`).get(report.requestId);
+    WHERE data_mode = ? AND request_id = ?`).get(mode, report.requestId);
   if (prior) {
     if (prior.request_fingerprint !== report.fingerprint) {
       throw new InputError(409, 'REQUEST_CONFLICT', 'This request ID already belongs to different report details.');
@@ -172,25 +183,28 @@ function saveReport(db, report) {
     return { id: prior.id, created: false };
   }
   const id = 'JN-' + randomUUID();
-  const png = encodePhoto(report.width, report.height, report.pixels);
+  const png = report.png ?? encodePhoto(report.width, report.height, report.pixels);
   db.prepare(`INSERT INTO report
     (id, data_mode, request_id, request_fingerprint, zone_id, observed_at, submitted_at, image_path,
       image_fingerprint, note, ph, temperature_c)
-    VALUES (?, 'demo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    id, report.requestId, report.fingerprint, report.zoneId, report.observedAt, new Date().toISOString(),
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    id, mode, report.requestId, report.fingerprint, report.zoneId, report.observedAt, new Date().toISOString(),
     id + '.png', report.hash, report.note || null, report.ph, report.temperature,
   );
   db.prepare('INSERT INTO report_photo (report_id, png) VALUES (?, ?)').run(id, png);
   return { id, created: true };
 }
 
-export function createApp({ dbPath = resolve('data', 'jalnetra.sqlite') } = {}) {
+export function createApp({
+  dbPath = resolve('data', 'jalnetra.sqlite'), vision = null, timeoutMs = 12000,
+} = {}) {
+  const mode = vision?.source === 'live_model' ? 'live' : 'demo';
   const db = openDatabase(dbPath);
   const joined = `FROM report r JOIN zone z ON z.id = r.zone_id
     LEFT JOIN analysis_attempt a ON a.report_id = r.id AND a.attempt = r.current_attempt`;
-  const find = db.prepare(`SELECT ${reportFields} ${joined} WHERE r.id = ? AND r.data_mode = 'demo'`);
+  const find = db.prepare(`SELECT ${reportFields} ${joined} WHERE r.id = ? AND r.data_mode = ?`);
   const list = db.prepare(`SELECT ${reportFields} ${joined}
-    WHERE r.data_mode = 'demo' AND (? IS NULL OR r.zone_id = ?)
+    WHERE r.data_mode = ? AND (? IS NULL OR r.zone_id = ?)
     ORDER BY r.submitted_at DESC, r.id DESC LIMIT 25`);
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     try {
@@ -205,35 +219,43 @@ export function createApp({ dbPath = resolve('data', 'jalnetra.sqlite') } = {}) 
         const [file, type] = assets.get(pathname);
         return respond(res, 200, readFileSync(new URL('../public/' + file, import.meta.url)), type);
       }
+      if (req.method === 'GET' && pathname === '/api/status') {
+        return respond(res, 200, { mode, visionSource: vision?.source ?? null, samples: mode === 'demo' ? sampleList : [] });
+      }
+      if (req.method === 'GET' && mode === 'demo' && pathname.startsWith('/api/demo/samples/')) {
+        const sample = getSample(pathname.slice('/api/demo/samples/'.length));
+        if (sample) return respond(res, 200, sample.png, 'image/png');
+      }
       if (req.method === 'GET' && pathname === '/api/zones') {
         return respond(res, 200, db.prepare(`SELECT id, lake_name AS lakeName, name,
           latitude, longitude, marker_x AS markerX, marker_y AS markerY FROM zone ORDER BY rowid`).all());
       }
       if (req.method === 'GET' && pathname === '/api/reports') {
         const zoneId = searchParams.get('zoneId');
-        return respond(res, 200, list.all(zoneId, zoneId).map(reportView));
+        return respond(res, 200, list.all(mode, zoneId, zoneId).map(row => reportView(db, row, vision)));
       }
       if (req.method === 'POST' && pathname === '/api/reports') {
         const report = await validateReport(req, db);
-        db.exec('BEGIN IMMEDIATE');
-        let result;
-        try {
-          result = saveReport(db, report);
-          db.exec('COMMIT');
-        } catch (error) {
-          db.exec('ROLLBACK');
-          throw error;
-        }
-        return respond(res, result.created ? 201 : 200, reportView(find.get(result.id)));
+        const { result, attempt } = transact(db, () => {
+          const result = saveReport(db, report, mode);
+          return { result, attempt: result.created ? claimAttempt(db, result, vision, timeoutMs) : null };
+        });
+        await runAttempt(db, attempt, vision, timeoutMs);
+        return respond(res, result.created ? 201 : 200, reportView(db, find.get(result.id, mode), vision));
       }
-      const reportRoute = /^\/api\/reports\/(JN-[a-f0-9-]{36})(\/photo)?$/.exec(pathname);
-      if (req.method === 'GET' && reportRoute) {
-        const [, id, photo] = reportRoute;
-        const report = find.get(id);
-        if (report && !photo) return respond(res, 200, reportView(report));
-        if (report && photo) {
+      const reportRoute = /^\/api\/reports\/(JN-[a-f0-9-]{36})(\/(photo|retry))?$/.exec(pathname);
+      if (reportRoute) {
+        const [, id, , action] = reportRoute;
+        const report = find.get(id, mode);
+        if (report && req.method === 'GET' && !action) return respond(res, 200, reportView(db, report, vision));
+        if (report && req.method === 'GET' && action === 'photo') {
           const image = db.prepare('SELECT png FROM report_photo WHERE report_id = ?').get(id);
           if (image) return respond(res, 200, image.png, 'image/png');
+        }
+        if (report && req.method === 'POST' && action === 'retry' && vision) {
+          const attempt = transact(db, () => claimAttempt(db, report, vision, timeoutMs));
+          await runAttempt(db, attempt, vision, timeoutMs);
+          return respond(res, attempt?.busy ? 202 : 200, reportView(db, find.get(id, mode), vision));
         }
       }
       return respond(res, 404, { error: { code: 'NOT_FOUND', message: 'This page or report could not be found.' } });
@@ -251,5 +273,9 @@ export function createApp({ dbPath = resolve('data', 'jalnetra.sqlite') } = {}) 
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT || '3000');
-  createApp().listen(port, '127.0.0.1', () => console.log('JalNetra is running at http://127.0.0.1:' + port));
+  const vision = process.env.JALNETRA_MODE === 'live' ? createOpenAiVision({
+    apiKey: process.env.OPENAI_API_KEY, model: process.env.JALNETRA_VISION_MODEL,
+  }) : createReplayVision();
+  createApp({ vision }).listen(port, '127.0.0.1', () => console.log('JalNetra is running at http://127.0.0.1:' + port));
 }
+

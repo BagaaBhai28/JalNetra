@@ -46,6 +46,10 @@ textarea { resize: vertical; }
 .upload { display: grid; border: 1px dashed #9ab5a7; border-radius: 10px; padding: 9px 10px; background: #f2f8ee; }
 .upload input { width: 100%; font-size: .83rem; }
 .upload input::file-selector-button { font: inherit; border: 0; background: #dcebdd; border-radius: 6px; padding: 7px 9px; margin-right: 8px; color: #173f35; cursor: pointer; }
+#sample-controls { margin-top: 8px; }
+#sample-controls select { margin-top: 3px; }
+.secondary { border: 1px solid #9ab5a7; border-radius: 6px; background: #f6faf3; color: #174137; padding: 4px 8px; cursor: pointer; font-size: .8rem; margin-top: 5px; }
+.secondary:disabled { opacity: .65; cursor: wait; }
 .upload img { margin-top: 8px; max-width: 100%; max-height: 160px; object-fit: contain; border-radius: 6px; }
 details { padding: 5px 0; font-size: .86rem; }
 summary { cursor: pointer; font-weight: 650; }
@@ -76,3 +80,4 @@ summary { cursor: pointer; font-weight: 650; }
   .report-list li { grid-template-columns: 45px minmax(0, 1fr); }
   .report-list .tag { grid-column: 2; justify-self: start; }
 }
+
