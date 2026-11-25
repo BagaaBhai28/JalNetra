@@ -88,6 +88,15 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       const upstream = await call(path, options);
       if (!upstream.ok) {
         const data = await upstream.json().catch(() => ({}));
+        if (action === 'signin' && data.error_code === 'invalid_credentials') {
+          throw new PilotError(400, 'INVALID_CREDENTIALS', 'Email or password is incorrect. Use your JalNetra account, or choose Forgot password.');
+        }
+        if (action === 'signin' && data.error_code === 'email_not_confirmed') {
+          throw new PilotError(400, 'EMAIL_NOT_CONFIRMED', 'Confirm your email using the link sent when you created your account, then sign in.');
+        }
+        if (['signup', 'recover'].includes(action) && data.error_code === 'email_address_not_authorized') {
+          throw new PilotError(503, 'EMAIL_DELIVERY_UNAVAILABLE', 'Email delivery is unavailable for this address. Contact the JalNetra administrator.');
+        }
         if ([401, 403].includes(upstream.status)) throw new PilotError(upstream.status, 'PILOT_ACCESS_DENIED', 'Your account cannot perform this action. Sign in again if your session expired.');
         if (upstream.status === 409 || data.code === '23505') throw new PilotError(409, 'PILOT_CONFLICT', 'This record already exists. Refresh and try again.');
         if (upstream.status === 429) throw new PilotError(429, 'PILOT_RATE_LIMIT', 'Too many requests. Wait and try again.');
@@ -161,7 +170,8 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         return reply(200, { updated: true });
       }
       if (['signin', 'signup', 'refresh'].includes(action)) {
-        const { email, password, refresh_token } = await jsonInput(input);
+        const { email: address, password, refresh_token } = await jsonInput(input);
+        const email = typeof address === 'string' ? address.trim() : address;
         if (action === 'refresh') {
           requireValue(typeof refresh_token === 'string' && refresh_token.length <= 800 && refresh_token.length > 0,
             'INVALID_SESSION', 'Sign in again to continue.');
