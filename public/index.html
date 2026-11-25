@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#133d38">
   <title>JalNetra � Lake observations</title>
-  <link rel="stylesheet" href="/style.css?v=shared-reporting">
-  <script type="module" src="/app.js?v=citizen-signup"></script>
+  <link rel="stylesheet" href="/style.css?v=operator-demo">
+  <script type="module" src="/app.js?v=operator-demo"></script>
 </head>
 <body>
   <header class="top">
@@ -17,8 +17,8 @@
     <section class="intro" aria-labelledby="title">
       <p class="eyebrow">LAKE MONITORING</p>
       <h1 id="title">Report a shoreline observation</h1>
-      <p id="intro-description">Choose a lake and shoreline zone, then sign in to share a photo and any readings with the lake operator.</p>
-      <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen" >Citizen lake map and reporting</a><a id="citizen-signup-link" href="/pilot.html?role=citizen#citizen-signup">Citizen sign up</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
+      <p id="intro-description">Choose a lake and shoreline zone, then share a photo and any readings with the lake operator.</p>
+      <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen" >Citizen lake map and guest reporting</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
     </section>
     <section class="card city-explorer" id="city-explorer" aria-labelledby="city-title">
       <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Drag to explore or zoom in to see more lake names.</p></div><button id="map-expand" class="secondary" type="button" aria-controls="city-grid" aria-expanded="false">Expand map</button></div>
@@ -28,6 +28,7 @@
             <div id="city-map-tiles" class="map-tiles" aria-hidden="true"></div>
             <div id="city-landmarks" class="map-zones" aria-hidden="true"></div>
             <div id="city-markers" class="map-zones" aria-label="Bengaluru lakes on the map"></div>
+            <div class="map-zones demo-overlay" id="demo-alert-layer"><span class="demo-map-alert" id="demo-alert-marker" data-map-id="demo-alert" hidden>Demo alert</span></div>
           </div>
           <div class="city-controls" aria-label="Map controls">
             <button id="map-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
@@ -84,6 +85,11 @@
           </section>
         </div>
       </div>
+    </section>
+    <section class="card evidence-panel history" id="demo-concern-tools" aria-label="Demonstrate a shoreline concern" hidden>
+      <div class="pilot-actions"><button class="primary" type="button" id="send-demo-concern">Send demo concern</button><a id="open-demo-operator" hidden>Open demo in operator workspace</a></div>
+      <p class="hint">Show the reporting workflow with a sample photo and a simulated map alert.</p>
+      <p id="demo-concern-feedback" role="status"></p>
     </section>
     <section id="rehearsal-tools" class="rehearsal" aria-label="Demo rehearsal" hidden>
       <button id="restart-rehearsal" class="secondary" type="button">Start rehearsal</button>
