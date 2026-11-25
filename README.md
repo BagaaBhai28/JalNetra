@@ -10,9 +10,15 @@ A resident photographs a shoreline issue and selects a zone. JalNetra identifies
 
 **Current status** — The local prototype supports report intake, vision analysis, hotspot mapping, complaint drafting, and an isolated rehearsal mode. Offline samples show simulated outcomes.
 
+## Hosted demo on Vercel
+
+The Vercel deployment uses simulated vision results for the labelled sample images. Start a rehearsal to seed North Inlet, submit the second foam sample at the same zone, then open the hotspot and export its complaint draft. Each browser gets an isolated session that survives refreshes. Private session data expires after seven days.
+
+To deploy to another Vercel project, connect a private Vercel Blob store and expose its `BLOB_READ_WRITE_TOKEN` to the function. The local and hosted modes share the same SQLite workflow. The hosted function stores per-session snapshots in private Blob storage.
+
 ## Run the prototype
 
-Use Node.js 24 or newer from the repository root. Phase 1 uses Node’s built-in HTTP server and SQLite, so there are no packages to install.
+Use Node.js 24 from the repository root. The local mode uses Node’s built-in HTTP server and SQLite, so there are no packages to install.
 
 ```bash
 node src/server.js

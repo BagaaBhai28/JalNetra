@@ -4,7 +4,7 @@ import { getSample } from './vision.js';
 export async function resetRehearsal(db, vision, timeoutMs, saveReport) {
   const sample = getSample('foam-inlet');
   const attempt = transact(db, () => {
-    // This database exists only in memory and holds rehearsal observations.
+    // The caller provides an isolated local rehearsal or hosted demo session.
     db.exec(`DELETE FROM complaint_evidence;
       DELETE FROM complaint_draft;
       UPDATE report SET current_attempt = NULL;

@@ -218,11 +218,11 @@ function saveReport(db, report, mode) {
 }
 
 export function createApp({
-  dbPath = resolve('data', 'jalnetra.sqlite'), vision = null, timeoutMs = 12000, rehearsal = false,
+  dbPath = resolve('data', 'jalnetra.sqlite'), vision = null, timeoutMs = 12000, rehearsal = false, hostedOrigin = null,
 } = {}) {
   const mode = vision?.source === 'live_model' ? 'live' : 'demo';
   if (rehearsal && vision?.source !== 'simulated') throw new Error('Rehearsal requires offline vision samples.');
-  const db = openDatabase(rehearsal ? ':memory:' : dbPath);
+  const db = openDatabase(rehearsal && !hostedOrigin ? ':memory:' : dbPath);
   let activeAnalyses = 0;
   async function withAnalysis(run) {
     activeAnalyses++;
@@ -242,8 +242,9 @@ export function createApp({
     try {
       const host = req.headers.host ?? '';
       const origin = req.headers.origin;
-      if (!/^(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(host) ||
-          (origin && origin !== 'http://' + host)) {
+      const blocked = hostedOrigin ? origin && origin !== hostedOrigin :
+        !/^(?:127\.0\.0\.1|localhost)(?::\d+)?$/.test(host) || (origin && origin !== 'http://' + host);
+      if (blocked) {
         return respond(res, 403, { error: { code: 'LOCAL_ONLY', message: 'Open JalNetra directly on this computer.' } });
       }
       const { pathname, searchParams } = new URL(req.url, 'http://localhost');
@@ -252,7 +253,7 @@ export function createApp({
         return respond(res, 200, readFileSync(new URL('../public/' + file, import.meta.url)), type);
       }
       if (req.method === 'GET' && pathname === '/api/status') {
-        return respond(res, 200, { mode, rehearsal, visionSource: vision?.source ?? null, samples: mode === 'demo' ? sampleList : [] });
+        return respond(res, 200, { mode, rehearsal, hosted: Boolean(hostedOrigin), visionSource: vision?.source ?? null, samples: mode === 'demo' ? sampleList : [] });
       }
       if (req.method === 'POST' && rehearsal && pathname === '/api/demo/reset') {
         await parseJson(req);

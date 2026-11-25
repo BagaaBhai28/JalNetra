@@ -366,7 +366,9 @@ sampleSelect.addEventListener('change', async () => {
 async function loadMode() {
   const mode = await getJson('/api/status');
   document.querySelector('#app-mode').lastChild.textContent =
-    mode.mode === 'live' ? ' Live vision' : mode.rehearsal ? ' Demo rehearsal' : ' Offline demo';
+    mode.hosted ? ' Hosted demo' : mode.mode === 'live' ? ' Live vision' : mode.rehearsal ? ' Demo rehearsal' : ' Offline demo';
+  if (mode.hosted) document.querySelector('#rehearsal-status').textContent =
+    'Use the illustrated samples. Your browser has a separate demo session which expires after seven days.';
   document.querySelector('#rehearsal-tools').hidden = !mode.rehearsal;
   samples = mode.samples;
   sampleControl.hidden = samples.length === 0;
@@ -445,7 +447,6 @@ form.addEventListener('submit', async event => {
 });
 
 updateTimestamp();
-loadZones().then(loadHotspots).catch(() => setStatus('The shoreline zones could not be loaded. Refresh to try again.', 'error'));
-loadMode().catch(() => setStatus('Analysis mode could not be loaded. Refresh to try again.', 'error'));
-loadHistory();
+loadMode().then(() => Promise.all([loadZones().then(loadHotspots), loadHistory()]))
+  .catch(() => setStatus('The demo could not be loaded. Refresh to try again.', 'error'));
 
