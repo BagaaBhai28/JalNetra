@@ -7,7 +7,8 @@ import { pathToFileURL } from 'node:url';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
 import { claimAttempt, runAttempt, transact } from './analysis.js';
 import { hotspotDashboard } from './hotspots.js';
-import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList } from './vision.js';
+import { createDraft, exportDraft, getDraft, updateDraft } from './complaints.js';
+import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList, categories } from './vision.js';
 
 const zones = [
   ['north-inlet', 'North Inlet', .45, .24],
@@ -68,12 +69,7 @@ function openDatabase(path) {
   }
 }
 
-async function parseForm(req) {
-  const type = req.headers['content-type'] ?? '';
-  if (!/^multipart\/form-data\s*;/i.test(type)) {
-    throw new InputError(415, 'EXPECTED_FORM', 'Submit a photo using the report form.');
-  }
-  const limit = maxRgbBytes + 32 * 1024;
+async function readBody(req, limit) {
   if (Number(req.headers['content-length']) > limit) {
     req.resume();
     throw new InputError(413, 'UPLOAD_TOO_LARGE', 'The upload is too large.');
@@ -88,8 +84,32 @@ async function parseForm(req) {
     }
     blocks.push(block);
   }
+  return Buffer.concat(blocks);
+}
+
+async function parseJson(req) {
+  const type = req.headers['content-type'] ?? '';
+  if (!/^application\/json(?:\s*;|$)/i.test(type)) {
+    throw new InputError(415, 'EXPECTED_JSON', 'Send this request as JSON.');
+  }
+  const data = await readBody(req, 48 * 1024);
   try {
-    return await new Response(Buffer.concat(blocks), {
+    const value = JSON.parse(data.toString('utf8'));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    return value;
+  } catch {
+    throw new InputError(400, 'INVALID_JSON', 'The draft details could not be read.');
+  }
+}
+
+async function parseForm(req) {
+  const type = req.headers['content-type'] ?? '';
+  if (!/^multipart\/form-data\s*;/i.test(type)) {
+    throw new InputError(415, 'EXPECTED_FORM', 'Submit a photo using the report form.');
+  }
+  const data = await readBody(req, maxRgbBytes + 32 * 1024);
+  try {
+    return await new Response(data, {
       headers: { 'Content-Type': type },
     }).formData();
   } catch {
@@ -246,6 +266,37 @@ export function createApp({
         });
         await runAttempt(db, attempt, vision, timeoutMs);
         return respond(res, result.created ? 201 : 200, reportView(db, find.get(result.id, mode), vision));
+      }
+      if (req.method === 'POST' && pathname === '/api/complaints') {
+        const { zoneId, category } = await parseJson(req);
+        if (typeof zoneId !== 'string' || !categories.includes(category) ||
+            !db.prepare('SELECT 1 FROM zone WHERE id = ?').get(zoneId)) {
+          throw new InputError(400, 'INVALID_COMPLAINT', 'Choose a listed zone and observation category.');
+        }
+        const result = transact(db, () => createDraft(db, mode, zoneId, category, Date.now()));
+        if (!result) throw new InputError(409, 'INSUFFICIENT_EVIDENCE', 'Two distinct recent photos are required.');
+        return respond(res, result.created ? 201 : 200, result.draft);
+      }
+      const draftRoute = /^\/api\/complaints\/(JD-[a-f0-9-]{36})(\/export)?$/.exec(pathname);
+      if (draftRoute) {
+        const [, id, download] = draftRoute;
+        if (req.method === 'GET') {
+          const draft = getDraft(db, mode, id);
+          if (draft && download) {
+            res.setHeader('Content-Disposition', 'attachment; filename="' + id + '.txt"');
+            return respond(res, 200, exportDraft(draft), 'text/plain; charset=utf-8');
+          }
+          if (draft) return respond(res, 200, draft);
+        }
+        if (req.method === 'PATCH' && !download) {
+          const { recipient, draftText } = await parseJson(req);
+          if (typeof recipient !== 'string' || recipient.length > 160 || /[\r\n]/.test(recipient) ||
+              typeof draftText !== 'string' || !draftText.trim() || draftText.length > 20000) {
+            throw new InputError(400, 'INVALID_DRAFT', 'Check the recipient and keep the draft between 1 and 20,000 characters.');
+          }
+          const draft = transact(db, () => updateDraft(db, mode, id, recipient.trim(), draftText.trim()));
+          if (draft) return respond(res, 200, draft);
+        }
       }
       const reportRoute = /^\/api\/reports\/(JN-[a-f0-9-]{36})(\/(photo|retry))?$/.exec(pathname);
       if (reportRoute) {

@@ -73,6 +73,24 @@
         </form>
       </section>
     </div>
+    <dialog id="draft-dialog" aria-labelledby="draft-title">
+      <div class="card-head">
+        <div><h2 id="draft-title">Civic complaint draft</h2><p>Review the wording and verify the recipient.</p></div>
+        <button id="close-draft" type="button" class="secondary">Close</button>
+      </div>
+      <form id="draft-form">
+        <label for="recipient">Recipient</label>
+        <input id="recipient" maxlength="160" placeholder="Verify civic body">
+        <label for="draft-text">Draft text</label>
+        <textarea id="draft-text" maxlength="20000" rows="11" required></textarea>
+        <p id="draft-evidence" class="hint"></p>
+        <div class="draft-actions">
+          <button class="secondary" id="save-draft" type="submit">Save changes</button>
+          <button class="primary" id="download-draft" type="button">Download draft</button>
+        </div>
+        <p id="draft-status" class="feedback" role="status"></p>
+      </form>
+    </dialog>
     <section class="card history" aria-labelledby="history-title">
       <div class="card-head"><div><h2 id="history-title">Recent observations</h2><p>Times shown in IST</p></div></div>
       <p id="history-status" role="status">Loading observations…</p>

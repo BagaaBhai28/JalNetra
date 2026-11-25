@@ -8,7 +8,7 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — Report intake, vision analysis, and hotspot mapping run locally. The offline mode uses labelled sample images with simulated results.
+**Current status** — Report intake, vision analysis, hotspot mapping, and complaint drafting run locally. The offline mode uses labelled sample images with simulated results.
 
 ## Run the prototype
 
@@ -193,7 +193,7 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-Zone listing, report intake, history, and photo retrieval are implemented. Retry and hotspot routes are implemented. The complaint route describes the next phase. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. Retry, hotspot, and complaint routes are implemented. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|
@@ -204,7 +204,10 @@ Zone listing, report intake, history, and photo retrieval are implemented. Retry
 | `GET /api/reports/:id/photo` | Report ID | `200` with the normalized image and correct content type. |
 | `POST /api/reports/:id/retry` | Report ID | `200` with the updated result or `202` with an already-running attempt. |
 | `GET /api/hotspots` | None | `200` with zones and their current per-category evidence. |
-| `POST /api/complaints` | JSON `zoneId`, `category` | `201` with draft ID, recipient placeholder, generated text, and evidence IDs. |
+| `POST /api/complaints` | JSON `zoneId`, `category` | `201` for a new draft or `200` for an existing draft with the same evidence. |
+| `GET /api/complaints/:id` | Draft ID | `200` with the saved draft and its evidence. |
+| `PATCH /api/complaints/:id` | JSON `recipient`, `draftText` | `200` with saved edits and the original evidence. |
+| `GET /api/complaints/:id/export` | Draft ID | `200` with a downloadable text file. |
 
 Use `400` for invalid fields, `404` for records absent from the active dataset, `409` for a draft whose evidence no longer qualifies or reuse of a request ID with different content, `413` for oversized files, and `415` for unsupported files. A vision failure after a successful save returns the saved report with `needs_review` and a reason. Use a predictable error shape such as `{"error":{"code":"INVALID_ZONE","message":"Choose a listed shoreline zone."}}`.
 

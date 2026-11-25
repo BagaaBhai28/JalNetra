@@ -11,6 +11,14 @@ const reports = document.querySelector('#report-list');
 const evidenceContent = document.querySelector('#evidence-content');
 const hotspotLabels = { none: 'No active evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
 let dashboard;
+const draftDialog = document.querySelector('#draft-dialog');
+const draftForm = document.querySelector('#draft-form');
+const draftStatus = document.querySelector('#draft-status');
+const recipientInput = document.querySelector('#recipient');
+const draftText = document.querySelector('#draft-text');
+const saveDraftButton = document.querySelector('#save-draft');
+const downloadDraft = document.querySelector('#download-draft');
+let currentDraft;
 let requestId = crypto.randomUUID();
 let previewUrl;
 let selectedFile;
@@ -94,9 +102,70 @@ function renderEvidence() {
       list.append(row);
     }
     card.append(list);
+    if (group.status === 'priority_hotspot') {
+      const button = textElement('button', 'Open complaint draft', 'secondary');
+      button.type = 'button';
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+          currentDraft = await getJson('/api/complaints', jsonRequest('POST', {
+            zoneId: selected.zoneId, category: group.category,
+          }));
+          recipientInput.value = currentDraft.recipient ?? '';
+          draftText.value = currentDraft.draftText;
+          document.querySelector('#draft-evidence').textContent =
+            'Evidence: ' + currentDraft.evidence.map(report => report.id).join(', ');
+          draftStatus.textContent = '';
+          draftDialog.showModal();
+        } catch (error) {
+          card.append(textElement('p', error.message, 'feedback error'));
+        } finally {
+          button.disabled = false;
+        }
+      });
+      card.append(button);
+    }
     evidenceContent.append(card);
   }
 }
+
+function jsonRequest(method, data) {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
+}
+
+async function saveDraft(download = false) {
+  if (!currentDraft || !draftForm.reportValidity() || saveDraftButton.disabled) return;
+  saveDraftButton.disabled = true;
+  downloadDraft.disabled = true;
+  draftStatus.textContent = '';
+  draftStatus.className = 'feedback';
+  try {
+    const url = '/api/complaints/' + currentDraft.id;
+    currentDraft = await getJson(url, jsonRequest('PATCH', {
+      recipient: recipientInput.value, draftText: draftText.value,
+    }));
+    draftStatus.textContent = 'Draft saved.';
+    if (download) {
+      const link = document.createElement('a');
+      link.href = url + '/export';
+      link.download = currentDraft.id + '.txt';
+      link.click();
+    }
+  } catch (error) {
+    draftStatus.textContent = error.message;
+    draftStatus.className = 'feedback error';
+  } finally {
+    saveDraftButton.disabled = false;
+    downloadDraft.disabled = false;
+  }
+}
+
+document.querySelector('#close-draft').addEventListener('click', () => draftDialog.close());
+draftForm.addEventListener('submit', event => {
+  event.preventDefault();
+  saveDraft();
+});
+downloadDraft.addEventListener('click', () => saveDraft(true));
 
 async function loadHotspots() {
   try {

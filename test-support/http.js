@@ -32,9 +32,13 @@ export function openApp(dbPath = ':memory:', options = {}) {
     });
     return new Promise((resolve, reject) => {
       const res = {
+        headers: {},
+        setHeader(name, value) {
+          this.headers[name] = value;
+        },
         writeHead(status, headers) {
           this.status = status;
-          this.headers = headers;
+          Object.assign(this.headers, headers);
         },
         end(data) {
           resolve(new Response(data, { status: this.status, headers: this.headers }));

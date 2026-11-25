@@ -77,6 +77,12 @@ summary { cursor: pointer; font-weight: 650; }
 .feedback.error { color: #a42d2c; }
 .feedback.success { color: #216852; }
 :focus-visible { outline: 3px solid #376d96; outline-offset: 2px; }
+dialog { width: min(680px, calc(100% - 24px)); max-height: 92vh; padding: 0; border: 1px solid var(--line); border-radius: 12px; color: #183731; background: var(--white); }
+dialog::backdrop { background: #12342c99; }
+dialog textarea { min-height: 170px; }
+#draft-evidence { overflow-wrap: anywhere; }
+.draft-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.draft-actions button { padding: 7px 10px; margin: 0; }
 .history { margin-top: 16px; }
 #history-status { padding: 10px 19px; }
 .report-list { margin: 0; padding: 0 19px; list-style: none; }
