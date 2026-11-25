@@ -61,7 +61,7 @@ export function createHostedHandler(store) {
     const url = new URL(request.url);
     const rewritten = url.pathname === '/api/jalnetra';
     const route = rewritten ? url.searchParams.get('jalroute') : url.pathname.slice(5);
-    if (!/^(?:status|lakes|zones|hotspots|reports|readings|complaints|demo)(?:\/[a-zA-Z0-9_-]+)*$/.test(route ?? '')) {
+    if (!/^(?:status|lakes|zones|hotspots|reports|readings|concerns|complaints|demo)(?:\/[a-zA-Z0-9_-]+)*$/.test(route ?? '')) {
       return errorResponse(404, 'NOT_FOUND', 'This page could not be found.');
     }
     const path = '/api/' + route;

@@ -59,6 +59,22 @@ test('hosted demo persists across requests, isolates browsers and protects concu
   const exported = await send('/api/complaints/' + draft.id + '/export', first);
   assert.match(await exported.text(), /DEMO DRAFT/);
   assert.match(exported.headers.get('content-disposition'), /attachment/);
+  const concernsPath = '/api/concerns?lakeId=bellandur-lake';
+  const concern = { zoneId: 'bellandur-east', category: 'suspected-discharge',
+    description: 'Saw cloudy water by the drain', requestId: 'test-concern-request' };
+  assert.equal((await send(concernsPath, first, json({ ...concern, zoneId: 'ulsoor-north' }))).status, 400);
+  const saved = await send(concernsPath, first, json(concern));
+  assert.equal(saved.status, 201);
+  const receipt = await saved.json();
+  assert.match(receipt.id, /^JC-/);
+  const replay = await send(concernsPath, first, json(concern));
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), receipt);
+  assert.equal((await send(concernsPath, first, json({ ...concern, description: 'Different' }))).status, 409);
+  assert.deepEqual(await send(concernsPath, second).then(response => response.json()), []);
+  fetch = createHostedHandler(store);
+  assert.deepEqual(await send(concernsPath, first).then(response => response.json()), [receipt]);
+  assert.deepEqual(await send('/api/concerns?lakeId=ulsoor-lake', first).then(response => response.json()), []);
   const [raceOne, raceTwo] = await Promise.all([
     send('/api/reports', first, { method: 'POST', body: sampleForm('algae') }),
     send('/api/reports', first, { method: 'POST', body: sampleForm('unclear') }),

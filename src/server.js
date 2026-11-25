@@ -26,6 +26,7 @@ const headers = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: https://tile.openstreetmap.org; style-src 'self'; object-src 'none'; frame-ancestors 'none'",
 };
+const concernCategories = new Set(['dumping', 'suspected-discharge', 'sewage', 'other']);
 class InputError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -55,9 +56,23 @@ function openDatabase(path) {
         report_id TEXT PRIMARY KEY REFERENCES report (id) ON DELETE CASCADE,
         png BLOB NOT NULL
       ); PRAGMA user_version = 1;`);
-    } else if (version !== 1) {
+    } else if (version !== 1 && version !== 2) {
       throw new Error('Unsupported JalNetra database schema version.');
     }
+    if (version < 2) db.exec(`
+      CREATE TABLE IF NOT EXISTS concern (
+        id TEXT PRIMARY KEY,
+        data_mode TEXT NOT NULL CHECK (data_mode IN ('demo', 'live')),
+        request_id TEXT NOT NULL,
+        zone_id TEXT NOT NULL REFERENCES zone(id),
+        category TEXT NOT NULL CHECK (category IN ('dumping', 'suspected-discharge', 'sewage', 'other')),
+        description TEXT NOT NULL CHECK (length(description) BETWEEN 1 AND 500),
+        created_at TEXT NOT NULL,
+        UNIQUE (data_mode, request_id)
+      );
+      CREATE INDEX IF NOT EXISTS concern_zone_recent ON concern (data_mode, zone_id, created_at DESC);
+      PRAGMA user_version = 2;
+    `);
     const seed = db.prepare(`INSERT INTO zone (id, lake_name, name, latitude, longitude, marker_x, marker_y)
       VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`);
     for (const lake of lakes) {
@@ -104,7 +119,7 @@ async function parseJson(req) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     return value;
   } catch {
-    throw new InputError(400, 'INVALID_JSON', 'The draft details could not be read.');
+    throw new InputError(400, 'INVALID_JSON', 'The submitted details could not be read.');
   }
 }
 
@@ -247,6 +262,14 @@ export function createApp({
   const joined = `FROM report r JOIN zone z ON z.id = r.zone_id
     LEFT JOIN analysis_attempt a ON a.report_id = r.id AND a.attempt = r.current_attempt`;
   const find = db.prepare(`SELECT ${reportFields} ${joined} WHERE r.id = ? AND r.data_mode = ?`);
+  const concernFields = `c.id, c.zone_id AS zoneId, z.name AS zoneName, z.lake_name AS lakeName,
+    c.category, c.description, c.created_at AS createdAt`;
+  const concernsFrom = 'FROM concern c JOIN zone z ON z.id = c.zone_id';
+  const recentConcerns = db.prepare(`SELECT ${concernFields} ${concernsFrom}
+    WHERE c.data_mode = ? AND z.lake_name = ? ORDER BY c.created_at DESC, c.rowid DESC LIMIT 10`);
+  const findConcern = db.prepare(`SELECT ${concernFields} ${concernsFrom} WHERE c.data_mode = ? AND c.request_id = ?`);
+  const insertConcern = db.prepare(`INSERT INTO concern (id, data_mode, request_id, zone_id, category, description, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(data_mode, request_id) DO NOTHING`);
   const list = db.prepare(`SELECT ${reportFields} ${joined}
     WHERE r.data_mode = ? AND (? IS NULL OR r.zone_id = ?) AND (? IS NULL OR z.lake_name = ?)
     ORDER BY r.submitted_at DESC, r.id DESC LIMIT 25`);
@@ -279,6 +302,29 @@ export function createApp({
       }
       if (req.method === 'GET' && pathname === '/api/lakes') {
         return respond(res, 200, lakes);
+      }
+      if (pathname === '/api/concerns' && (req.method === 'GET' || req.method === 'POST')) {
+        const lake = findLake(searchParams.get('lakeId'));
+        if (lake?.kind !== 'geographic') throw new InputError(400, 'INVALID_LAKE', 'Choose a mapped lake.');
+        if (req.method === 'GET') return respond(res, 200, recentConcerns.all(mode, lake.name));
+        const { zoneId, category, description, requestId } = await parseJson(req);
+        if (!lake.zones.some(item => item.id === zoneId)) {
+          throw new InputError(400, 'INVALID_ZONE', 'Choose a shoreline side in this lake.');
+        }
+        const note = typeof description === 'string' ? description.trim() : '';
+        if (!concernCategories.has(category) || !note || note.length > 500 ||
+            typeof requestId !== 'string' || !/^[a-z0-9_-]{12,80}$/i.test(requestId)) {
+          throw new InputError(400, 'INVALID_CONCERN', 'Choose a concern type and describe what you saw in 1 to 500 characters.');
+        }
+        const { concern, created } = transact(db, () => {
+          const { changes } = insertConcern.run('JC-' + randomUUID(), mode, requestId, zoneId, category, note, new Date().toISOString());
+          const concern = findConcern.get(mode, requestId);
+          if (concern.zoneId !== zoneId || concern.category !== category || concern.description !== note) {
+            throw new InputError(409, 'REQUEST_CONFLICT', 'This request ID already belongs to a different concern.');
+          }
+          return { concern, created: Boolean(changes) };
+        });
+        return respond(res, created ? 201 : 200, concern);
       }
       if (req.method === 'GET' && ['/api/hotspots', '/api/zones', '/api/reports', '/api/readings'].includes(pathname)) {
         const requested = searchParams.get('lakeId');

@@ -26,7 +26,6 @@ const map = document.querySelector('#lake-map');
 const tiles = document.querySelector('#map-tiles');
 const cityMap = document.querySelector('#city-map');
 const cityGrid = document.querySelector('#city-grid');
-const obscuredContent = [];
 const cityTiles = document.querySelector('#city-map-tiles');
 const cityMarkers = document.querySelector('#city-markers');
 const landmarkLayer = document.querySelector('#city-landmarks');
@@ -34,9 +33,16 @@ const lakeChoices = document.querySelector('#lake-choices');
 const lakeSearch = document.querySelector('#lake-search');
 const searchPanel = document.querySelector('#city-search-panel');
 const lakeProfile = document.querySelector('#lake-profile');
-const cityStatus = document.querySelector('#city-status');
 const sectorChoices = document.querySelector('#sector-choices');
-const reportToggle = document.querySelector('#report-toggle');
+const concernBox = document.querySelector('#concern-box');
+const concernForm = document.querySelector('#concern-form');
+const concernZone = document.querySelector('#concern-zone');
+const concernType = document.querySelector('#concern-type');
+const concernStatus = document.querySelector('#concern-status');
+const concernList = document.querySelector('#concern-list');
+const concernSubmit = document.querySelector('#save-concern');
+let concernRequest = crypto.randomUUID();
+let concernLoad = 0;
 const observationCard = document.querySelector('#observation-card');
 const demoWorkspace = document.querySelector('#demo-workspace');
 const demoGps = gpsButton.parentElement;
@@ -49,7 +55,6 @@ const landmarks = [
   { id: 'electronic-city', label: 'Electronic City', latitude: 12.8479, longitude: 77.6633 },
 ];
 const cityPoints = [];
-let reportOpen = false;
 let recentReportCount;
 const draftDialog = document.querySelector('#draft-dialog');
 const draftForm = document.querySelector('#draft-form');
@@ -91,6 +96,10 @@ function updateTimestamp() {
 }
 
 function highlightZone() {
+  if (concernZone.value !== zone.value) {
+    concernZone.value = zone.value;
+    concernRequest = crypto.randomUUID();
+  }
   for (const marker of [...markers.children, ...sectorChoices.children]) {
     marker.setAttribute('aria-pressed', String(marker.dataset.zoneId === zone.value));
     const hotspot = dashboard?.zones.find(item => item.zoneId === marker.dataset.zoneId);
@@ -340,17 +349,6 @@ function selectShoreline(id) {
   zone.value = id;
   gpsStatus.hidden = true;
   zone.dispatchEvent(new Event('change', { bubbles: true }));
-  if (currentLake.kind === 'geographic') {
-    cityStatus.textContent = '';
-    const photoWasHidden = observationCard.hidden;
-    reportOpen = true;
-    updateLakeProfile();
-    if (photoWasHidden) {
-      const heading = document.querySelector('#form-title');
-      heading.focus({ preventScroll: true });
-      heading.scrollIntoView({ block: 'nearest' });
-    }
-  }
 }
 
 function updateLakeProfile() {
@@ -360,10 +358,10 @@ function updateLakeProfile() {
     button.setAttribute('aria-pressed', String(button.dataset.mapId === currentLake.id));
   }
   lakeProfile.hidden = !real;
+  cityGrid.classList.toggle('has-lake', real);
   searchPanel.hidden = real;
   cityMarkers.hidden = real;
   landmarkLayer.hidden = real;
-  observationCard.hidden = real && (!reportOpen || !zone.value);
   if (!real) return;
   document.querySelector('#profile-name').textContent = currentLake.name;
   document.querySelector('#profile-locality').textContent = currentLake.locality;
@@ -374,8 +372,6 @@ function updateLakeProfile() {
     (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent observations') +
     (watch ? ' · ' + watch + ' sectors with active evidence' : '');
   document.querySelector('#lake-reference').href = currentLake.reference;
-  reportToggle.hidden = !zone.value;
-  reportToggle.textContent = observationCard.hidden ? 'Show report form' : 'Hide report form';
 }
 
 function filterLakeList() {
@@ -412,6 +408,7 @@ function buildCityExplorer() {
         if (lakeSelect.disabled) return;
         setLake(lake.id);
         lakeProfile.querySelector('#close-lake').focus({ preventScroll: true });
+        cityGrid.scrollIntoView({ block: 'start' });
       });
     }
     cityMarkers.append(pin);
@@ -432,6 +429,7 @@ function resetCity() {
   if (currentLake?.kind === 'geographic') {
     setLake('demo-lake');
     lakeSearch.focus({ preventScroll: true });
+    document.querySelector('#city-title').scrollIntoView({ block: 'nearest' });
   } else {
     cityController.fit();
     cityMap.focus({ preventScroll: true });
@@ -441,18 +439,6 @@ function resetCity() {
 function setExpanded(expanded) {
   if (cityGrid.classList.contains('is-expanded') === expanded) return;
   cityGrid.classList.toggle('is-expanded', expanded);
-  document.body.classList.toggle('map-expanded', expanded);
-  if (expanded) {
-    for (let container = cityGrid; container !== document.body; container = container.parentElement) {
-      for (const sibling of container.parentElement.children) {
-        if (sibling === container || sibling.inert) continue;
-        sibling.inert = true;
-        obscuredContent.push(sibling);
-      }
-    }
-  } else {
-    for (const sibling of obscuredContent.splice(0)) sibling.inert = false;
-  }
   const button = document.querySelector('#map-expand');
   const label = expanded ? 'Minimize map' : 'Expand map';
   button.setAttribute('aria-pressed', String(expanded));
@@ -469,14 +455,78 @@ document.querySelector('#map-zoom-in').addEventListener('click', () => cityContr
 document.querySelector('#map-zoom-out').addEventListener('click', () => cityController.zoomBy(-1));
 document.querySelector('#map-reset').addEventListener('click', resetCity);
 document.querySelector('#close-lake').addEventListener('click', resetCity);
+document.querySelector('#show-photo').addEventListener('click', () => {
+  const field = zone.value ? photoInput : zone;
+  field.focus({ preventScroll: true });
+  field.scrollIntoView({ block: 'nearest' });
+});
 document.querySelector('#map-expand').addEventListener('click', () => setExpanded(!cityGrid.classList.contains('is-expanded')));
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && cityGrid.classList.contains('is-expanded')) setExpanded(false);
 });
-reportToggle.addEventListener('click', () => {
-  reportOpen = !reportOpen;
-  updateLakeProfile();
-  if (reportOpen) document.querySelector('#form-title').scrollIntoView({ block: 'nearest' });
+
+function downloadConcern(concern, label) {
+  const text = [
+    'JalNetra citizen concern · Submitted by a member of the public', concern.id,
+    concern.lakeName + ' · ' + concern.zoneName, label, 'Recorded ' + formatTime.format(new Date(concern.createdAt)) + ' IST',
+    '', concern.description, '', 'This observation has not been independently verified.',
+  ].join('\n');
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  link.download = concern.id + '.txt';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+async function loadConcerns() {
+  const load = ++concernLoad;
+  concernList.replaceChildren(textElement('li', 'Loading saved concerns…'));
+  try {
+    const items = await getJson(lakeEndpoint('/api/concerns'));
+    if (load !== concernLoad) return;
+    concernList.replaceChildren();
+    for (const item of items) {
+      const label = [...concernType.options].find(option => option.value === item.category).textContent;
+      const entry = document.createElement('li');
+      const button = textElement('button', 'Download concern', 'inline-action');
+      button.type = 'button';
+      button.addEventListener('click', () => downloadConcern(item, label));
+      entry.append(textElement('strong', item.zoneName + ' · ' + label),
+        textElement('p', item.description), textElement('p', item.id), button);
+      concernList.append(entry);
+    }
+  } catch {
+    if (load === concernLoad) concernList.replaceChildren(textElement('li', 'Saved concerns could not be loaded.'));
+  }
+}
+
+concernBox.addEventListener('toggle', () => { if (concernBox.open) loadConcerns(); });
+concernZone.addEventListener('change', () => selectShoreline(concernZone.value));
+concernForm.addEventListener('input', () => { concernRequest = crypto.randomUUID(); });
+concernForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (concernSubmit.disabled) return;
+  const lake = currentLake;
+  const id = concernRequest;
+  const fields = Object.fromEntries(new FormData(concernForm));
+  concernSubmit.disabled = true;
+  concernStatus.textContent = 'Saving concern…';
+  try {
+    const concern = await getJson(lakeEndpoint('/api/concerns'),
+      jsonRequest('POST', { ...fields, requestId: id }));
+    if (currentLake !== lake) return;
+    if (concernRequest === id) {
+      concernForm.reset();
+      concernZone.value = zone.value;
+      concernRequest = crypto.randomUUID();
+    }
+    concernStatus.textContent = 'Concern saved. Reference ' + concern.id;
+    await loadConcerns();
+  } catch (error) {
+    if (currentLake === lake) concernStatus.textContent = error.message;
+  } finally {
+    concernSubmit.disabled = false;
+  }
 });
 
 function setLake(id) {
@@ -492,14 +542,13 @@ function setLake(id) {
   }
   currentLake = selected;
   setExpanded(geographic);
-  reportOpen = false;
   demoWorkspace.hidden = geographic;
   cityEvidence.hidden = !geographic;
   if (geographic) {
     cityMap.append(markers);
     document.querySelector('#city-report').append(observationCard);
     document.querySelector('#city-gps').append(gpsButton);
-    cityStatus.after(gpsStatus);
+    document.querySelector('.profile-links').after(gpsStatus);
     cityEvidence.append(evidencePanel);
   } else {
     map.insertBefore(markers, document.querySelector('#map-attribution'));
@@ -508,7 +557,12 @@ function setLake(id) {
     demoGpsStatus.insertBefore(gpsStatus, document.querySelector('#selected-shoreline'));
     demoEvidence.append(evidencePanel);
   }
-  cityStatus.textContent = '';
+  concernBox.open = false;
+  concernForm.reset();
+  concernStatus.textContent = '';
+  concernList.replaceChildren();
+  concernRequest = crypto.randomUUID();
+  ++concernLoad;
   lakeProfile.parentElement.scrollTop = 0;
   lakeSelect.value = id;
   requestId = crypto.randomUUID();
@@ -533,6 +587,7 @@ function setLake(id) {
   }
   sampleControl.hidden = geographic || samples.length === 0;
   zone.replaceChildren(new Option('Choose a zone', ''));
+  concernZone.replaceChildren(new Option('Choose a side', ''));
   readingZone.replaceChildren(new Option('All zones', ''));
   markers.replaceChildren();
   sectorChoices.replaceChildren();
@@ -552,6 +607,7 @@ function setLake(id) {
     marker.addEventListener('click', () => selectShoreline(item.id));
     markers.append(marker);
     if (geographic) {
+      concernZone.add(new Option(item.name, item.id));
       const direction = document.createElement('button');
       direction.type = 'button';
       direction.className = 'sector-choice';
@@ -566,9 +622,9 @@ function setLake(id) {
   else url.searchParams.delete('lake');
   window.history.replaceState(null, '', url);
   zonesLoaded = true;
+  highlightZone();
   if (geographic) cityController.fit(selected.zones, true);
   else cityController.fit();
-  highlightZone();
   renderReadings([], formatTime);
   return refreshDashboard();
 }

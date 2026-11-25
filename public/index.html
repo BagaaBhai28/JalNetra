@@ -53,11 +53,32 @@
             <p class="sector-help">Select a side to upload a photo and add readings or notes. Reporting sectors are approximate.</p>
             <div id="sector-choices" class="sector-choices" role="group" aria-labelledby="sector-title"></div>
             <div class="profile-links">
+              <button id="show-photo" type="button" class="inline-action">Upload a photo</button>
               <a id="lake-reference" target="_blank" rel="noopener">Lake reference</a>
-              <button id="report-toggle" type="button" class="inline-action" hidden></button>
               <span id="city-gps"></span>
             </div>
-            <p id="city-status" role="status"></p>
+            <details id="concern-box" class="card concern-card">
+              <summary>Raise a concern</summary>
+              <form id="concern-form">
+                <p class="hint">Describe what you observed. Please leave out names and contact details.</p>
+                <label for="concern-zone">Shoreline side</label>
+                <select id="concern-zone" name="zoneId" required></select>
+                <label for="concern-type">Concern type</label>
+                <select id="concern-type" name="category" required>
+                  <option value="">Choose a concern type</option>
+                  <option value="dumping">Garbage or waste dumping</option>
+                  <option value="suspected-discharge">Suspected industrial or wastewater discharge</option>
+                  <option value="sewage">Sewage or drain overflow</option>
+                  <option value="other">Other shoreline concern</option>
+                </select>
+                <label for="concern-description">What did you see?</label>
+                <textarea id="concern-description" name="description" maxlength="500" rows="3" placeholder="Describe what happened and add a nearby landmark if helpful." required></textarea>
+                <button class="primary" id="save-concern" type="submit">Save concern</button>
+                <p class="hint">Your concern stays in this browser's demo session. Download a copy to share it yourself.</p>
+                <p id="concern-status" class="feedback" role="status"></p>
+              </form>
+              <ul id="concern-list" class="concern-list" aria-label="Your saved concerns"></ul>
+            </details>
             <div id="city-report"></div>
           </section>
         </div>
