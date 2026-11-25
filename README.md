@@ -48,15 +48,33 @@ flowchart TD
 
 **Example** — The first eligible foam photo at North Inlet starts a **Watch**. A second distinct eligible photo of foam from the same zone within 48 hours raises a **Priority hotspot**. A repeated upload appears in history and adds zero to the count. The 48-hour window and two-photo threshold are prototype rules.
 
-### How an observation is processed
+### Phase 1 · Report intake
 
-1. Select **North Inlet**, **East Shore**, or **South Bank** on Demo Lake. Zone coordinates are approximate if a real pilot map is configured. The fictional map may omit them.
-2. Submit a JPEG or PNG up to 5 MB. Record observation time separately from submission time. Store UTC and show IST to the demo audience. Optional pH and temperature are marked **Citizen-reported** and excluded from hotspot rules.
-3. Validate, decode, and re-encode the photo. Persist a report before calling the model. Repeated submission of the same request ID returns the existing report.
-4. Ask the model for image quality and visible cues from the categories **foam**, **algae-like growth**, and **dumping**. A usable photo can return multiple categories or no target signs. Invalid responses and unclear photos enter **Needs review**.
-5. Recompute active evidence on dashboard load and when drafting. For each data mode, lake, zone and category, count one accepted observation per normalized image fingerprint, using observation times from the previous 48 hours through the current time. Choose the most recent eligible observation as the representative for a duplicate fingerprint. Break equal-time ties by report ID to keep output stable.
-6. Open the highest-priority marker for a zone and select a category. The detail panel lists its qualifying reports, times, thumbnails, and model cues. Older or unclear reports remain available in history.
-7. Generate a draft when the category qualifies, then edit the recipient or wording and export. The operator verifies which civic body should receive a real complaint.
+The citizen selects **North Inlet**, **East Shore**, or **South Bank** on Demo Lake and submits a JPEG or PNG up to 5 MB. The app records observation and submission times separately, stores them in UTC, and displays them in IST. Optional pH, temperature, and notes stay with the observation. Readings are labelled **Citizen-reported** and do not affect hotspot scoring. Real pilot zones may include approximate coordinates.
+
+The server validates, decodes, and re-encodes the image, then saves a **Pending** report before calling the model. A retry with the same request ID and payload returns the existing report.
+
+**Phase output** — A saved observation with a stable report ID, photo, zone, and timestamp.
+
+### Phase 2 · Vision analysis
+
+The vision adapter checks image quality and returns a short visual cue for each detected category. A usable image can show **foam**, **algae-like growth**, **dumping**, or no target signs. Unclear photos, invalid responses, and model failures go to **Needs review**. The saved observation stays available for a retry where applicable.
+
+**Phase output** — A report outcome with visible cues, a no-signs result, or a review reason.
+
+### Phase 3 · Hotspot mapping
+
+On dashboard load and before drafting, the server groups eligible reports by data mode, lake, shoreline zone, and category. It uses observation times from the last 48 hours through the current time. Each normalized image fingerprint counts once per group. For duplicates, use the most recent eligible observation and break equal-time ties by report ID.
+
+One eligible photo starts **Watch**. Two distinct eligible photos raise a **Priority hotspot**. A zone marker shows its highest-priority status. Opening the marker reveals the categories, thumbnails, observation times, and model cues. Older and unclear reports remain in history.
+
+**Phase output** — An interactive zone map with explainable hotspot counts and supporting observations.
+
+### Phase 4 · Civic complaint drafting
+
+The operator opens a priority category and requests a draft. The server checks eligibility again and saves the draft with the exact evidence report IDs. The operator can edit the wording or recipient and copy or download the result. The operator verifies which civic body should receive a real complaint.
+
+**Phase output** — An editable complaint draft with a traceable evidence list.
 
 ### Classification outcomes
 
@@ -361,17 +379,18 @@ Use descriptive labels for upload and form inputs. Show actionable validation ne
 
 ## Build and demo plan
 
-### Eight-hour build
+### Eight-hour build by phase
 
-| Elapsed time | Developer A | Developer B | Exit check |
-|---|---|---|---|
-| 0:00–0:30 | Agree on storage and API shapes. | Agree on screen flow and sample responses. | Both developers work from the same contract. |
-| 0:30–2:00 | Set up SQLite, seed zones and build upload validation. | Build report form, preview and bundled zone map. | A submitted photo receives a persistent report ID. |
-| 2:00–3:30 | Connect the live model and replay adapter. Add limits, timeout and validation. | Build results and zone detail panels from fixtures. | The first foam photo shows Watch. |
-| 3:30–4:30 | Build evidence times, grouping and deduplication. | Connect the map and evidence panel to the API. | A second distinct foam photo raises priority. |
-| 4:30–5:30 | Implement complaint eligibility and draft storage. | Wire draft review, edit and export. | The core path works end to end. |
-| 5:30–6:45 | Test errors, retries, duplicates and persistence. | Verify on the presentation device and rehearse offline replay. | Tests cover live and replay scenarios. |
-| 6:45–8:00 | Fix blockers and freeze the build. | Run the script twice and record a backup if there is time. | The laptop can run the complete demo. |
+Phase 0 prepares the build. Phases 1–4 deliver the product workflow above. Phase 5 verifies the full path and prepares the presentation.
+
+| Phase | Elapsed time | Developer A | Developer B | Checkpoint |
+|---|---|---|---|---|
+| 0 · Setup and shared contract | 0:00–0:30 | Agree on storage, API shapes, and model response fields. | Agree on screen flow and shared test fixtures. | Both developers can work from the same contract. |
+| 1 · Report intake | 0:30–2:00 | Set up SQLite, seed zones, and validate uploads. | Build the report form, image preview, and bundled map. | An uploaded photo gets a persistent report ID. |
+| 2 · Vision analysis | 2:00–3:30 | Connect the live model and replay adapter. Validate output and handle timeouts. | Build the results panel using shared fixtures and connect it to the API. | A foam report displays its visual cue and an unclear report enters review. |
+| 3 · Hotspot mapping | 3:30–4:30 | Implement the active window, grouping, and duplicate handling. | Connect the map and evidence panel to the hotspot API. | The first foam photo starts Watch. A distinct second photo raises priority. |
+| 4 · Civic complaint drafting | 4:30–5:30 | Enforce eligibility and save drafts with their supporting evidence. | Build draft review, editing, and export. | The full upload-to-complaint path works. |
+| 5 · Verification and presentation | 5:30–8:00 | Test failures, retries, duplicates, and restart persistence through 6:45. Then fix blockers and freeze the build. | Verify offline replay on the presentation laptop through 6:45. Then run two timed rehearsals and record a backup if time allows. | The full demo works on the presentation laptop with live analysis or labelled offline replay. |
 
 If the build is running late, prioritise photo intake, the bundled zone map, evidence grouping and plain-text complaint export. Category filters, map tiles and manual review controls can follow the demo.
 
