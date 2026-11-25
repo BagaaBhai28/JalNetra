@@ -9,6 +9,14 @@ export function project(latitude, longitude, zoom) {
   };
 }
 
+export function unproject(x, y, zoom) {
+  const size = tileSize * 2 ** zoom;
+  return {
+    latitude: Math.atan(Math.sinh(Math.PI * (1 - 2 * y / size))) * 180 / Math.PI,
+    longitude: x / size * 360 - 180,
+  };
+}
+
 function distanceMeters(lat1, lon1, lat2, lon2) {
   const rad = Math.PI / 180;
   const a = Math.sin((lat2 - lat1) * rad / 2) ** 2 +
@@ -32,14 +40,26 @@ export function nearestZone(lake, { latitude, longitude, accuracy }) {
   return nearest;
 }
 
-export function drawLakeMap(container, layer, lake, markers) {
-  if (!lake.center) return;
-  const { width, height } = container.getBoundingClientRect();
-  if (!width || !height) return;
-  const zoom = width < 400 || height < 250 ? 15 : 16;
-  const center = project(...lake.center, zoom);
-  const left = Math.round(center.x - width / 2);
-  const top = Math.round(center.y - height / 2);
+export function fitMap(points, width, height, maxZoom, padding = 44) {
+  const positions = points.map(({ latitude, longitude }) => project(latitude, longitude, 0));
+  const xs = positions.map(point => point.x);
+  const ys = positions.map(point => point.y);
+  const west = Math.min(...xs), east = Math.max(...xs);
+  const north = Math.min(...ys), south = Math.max(...ys);
+  const fraction = Math.min(
+    Math.max(1, width - padding * 2) / (east - west),
+    Math.max(1, height - padding * 2) / (south - north),
+  );
+  const zoom = Math.max(0, Math.min(maxZoom, Math.floor(Math.log2(fraction))));
+  const scale = 2 ** zoom;
+  return {
+    zoom, width, height,
+    left: Math.round((west + east) / 2 * scale - width / 2),
+    top: Math.round((north + south) / 2 * scale - height / 2),
+  };
+}
+
+function drawTiles(layer, { left, top, zoom, width, height }) {
   const firstX = Math.floor(left / tileSize);
   const firstY = Math.floor(top / tileSize);
   const lastX = Math.floor((left + width - 1) / tileSize);
@@ -64,11 +84,28 @@ export function drawLakeMap(container, layer, lake, markers) {
     }
   }
   for (const [key, tile] of reusable) if (!visible.has(key)) tile.remove();
+}
 
+export function drawMap(container, layer, points, markers, maxZoom, padding) {
+  const { width, height } = container.getBoundingClientRect();
+  if (!width || !height || !points.length) return null;
+  const viewport = fitMap(points, width, height, maxZoom, padding);
+  drawTiles(layer, viewport);
   for (const marker of markers.children) {
-    const point = lake.zones.find(zone => zone.id === marker.dataset.zoneId);
-    const location = project(point.latitude, point.longitude, zoom);
-    marker.style.left = (location.x - left) + 'px';
-    marker.style.top = (location.y - top) + 'px';
+    const point = points.find(item => item.id === marker.dataset.mapId);
+    if (!point) continue;
+    const location = project(point.latitude, point.longitude, viewport.zoom);
+    marker.style.left = (location.x - viewport.left) + 'px';
+    marker.style.top = (location.y - viewport.top) + 'px';
   }
+  return viewport;
+}
+
+export function sectorAt(lake, viewport, x, y) {
+  if (!viewport) return null;
+  const position = unproject(viewport.left + x, viewport.top + y, viewport.zoom);
+  const zone = nearestZone(lake, { ...position, accuracy: 0 });
+  if (!zone || distanceMeters(position.latitude, position.longitude, zone.latitude, zone.longitude) >
+    (lake.shorePickRadius ?? 240)) return null;
+  return zone;
 }

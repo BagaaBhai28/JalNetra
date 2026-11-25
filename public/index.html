@@ -19,6 +19,29 @@
       <h1 id="title">Report a shoreline observation</h1>
       <p>Choose a lake and shoreline zone, then add a photo and any readings you collected.</p>
     </section>
+    <section class="card city-explorer" aria-labelledby="city-title">
+      <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Select a lake name to see its details and reporting sectors.</p></div></div>
+      <div class="city-grid">
+        <div class="map city-map" id="city-map">
+          <div id="city-map-tiles" class="map-tiles" aria-hidden="true"></div>
+          <div id="city-markers" class="map-zones" aria-label="Bengaluru lakes on the map"></div>
+          <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
+        </div>
+        <div class="city-sidebar">
+          <div id="lake-choices" class="lake-choices" aria-label="Select a Bengaluru lake"></div>
+          <section id="lake-profile" aria-labelledby="profile-name">
+            <h3 id="profile-name">Choose a lake</h3>
+            <p id="profile-locality"></p>
+            <p id="profile-description">Select a pin or name to explore its shoreline.</p>
+            <p id="profile-observations"></p>
+            <div class="profile-links">
+              <a id="view-shoreline" href="#map-title" hidden>Open shoreline map</a>
+              <a id="lake-reference" target="_blank" rel="noopener" hidden>Lake reference</a>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
     <section id="rehearsal-tools" class="rehearsal" aria-label="Demo rehearsal" hidden>
       <button id="restart-rehearsal" class="secondary" type="button">Start rehearsal</button>
       <p id="rehearsal-status" role="status">Start with one foam observation at North Inlet. Rehearsal data is cleared when the server stops.</p>
@@ -47,6 +70,7 @@
         </div>
         <p id="map-help" class="map-help">Select a marker to see that zone’s evidence or choose a zone in the form.</p>
         <p id="gps-status" class="map-help" role="status" hidden></p>
+        <p id="selected-shoreline" class="map-help" hidden><span id="selected-shoreline-label"></span> <a href="#photo">Go to photo upload</a></p>
         <section class="evidence-panel" aria-labelledby="evidence-title">
           <h3 id="evidence-title">Zone evidence</h3>
           <div id="evidence-content" aria-live="polite"></div>

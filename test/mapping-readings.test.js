@@ -4,7 +4,7 @@ import { openApp, postJson } from '../test-support/http.js';
 import { submitSample, sampleForm } from '../test-support/samples.js';
 import { createReplayVision } from '../src/vision.js';
 import { lakes } from '../src/lakes.js';
-import { nearestZone, project } from '../public/lake-map.js';
+import { fitMap, nearestZone, project, sectorAt } from '../public/lake-map.js';
 import { readingText } from '../public/readings.js';
 
 test('GPS selects a nearby sector and rejects inaccurate or distant fixes', () => {
@@ -20,12 +20,40 @@ test('GPS selects a nearby sector and rejects inaccurate or distant fixes', () =
   assert.ok(Math.abs(projected.x - center.x) < 0.01);
 });
 
+test('the city viewport fits named lakes and a projected shoreline point selects the expected sector', () => {
+  const map = lakes.filter(lake => lake.center).map(lake => ({
+    latitude: lake.center[0], longitude: lake.center[1],
+  }));
+  const city = fitMap(map, 350, 300, 13, 62);
+  for (const point of map) {
+    const pos = project(point.latitude, point.longitude, city.zoom);
+    assert.ok(pos.x - city.left > 60 && pos.x - city.left < 290);
+    assert.ok(pos.y - city.top > 60 && pos.y - city.top < 240);
+  }
+  const lake = lakes.find(lake => lake.id === 'bellandur-lake');
+  const shore = fitMap(lake.zones, 440, 300, 16, 46);
+  const corner = lake.zones.find(zone => zone.id === 'bellandur-west');
+  const click = project(corner.latitude, corner.longitude, shore.zoom);
+  assert.equal(sectorAt(lake, shore, click.x - shore.left, click.y - shore.top).id, corner.id);
+  const far = project(13.0085, 77.5741, shore.zoom);
+  assert.equal(sectorAt(lake, shore, far.x - shore.left, far.y - shore.top), null);
+});
+
 test('readings and hotspots stay scoped to lakes and zones, with demo reset isolation', async () => {
   const app = openApp(':memory:', { vision: createReplayVision(), rehearsal: true });
   const get = path => app.request(path).then(response => response.json());
   try {
     const mapped = await get('/api/lakes');
-    assert.deepEqual(mapped.map(lake => lake.id), ['demo-lake', 'ulsoor-lake', 'sankey-tank']);
+    assert.deepEqual(mapped.map(lake => lake.id), [
+      'demo-lake', 'ulsoor-lake', 'sankey-tank', 'agara-lake', 'madiwala-lake', 'bellandur-lake',
+    ]);
+    assert.ok(mapped.filter(lake => lake.kind === 'geographic').every(lake => lake.locality && lake.reference));
+    const bellandur = await submitSample(app, 'clear-view', {
+      zoneId: 'bellandur-west', requestId: 'bellandur-corner-photo', ph: '',
+    });
+    assert.equal(bellandur.lakeName, 'Bellandur Lake');
+    assert.equal(bellandur.zoneId, 'bellandur-west');
+    assert.equal((await app.request(bellandur.photoUrl)).headers.get('content-type'), 'image/png');
     assert.deepEqual((await get('/api/zones?lakeId=sankey-tank')).map(zone => zone.lakeName),
       Array(4).fill('Sankey Tank'));
 

@@ -1,4 +1,4 @@
-import { drawLakeMap, nearestZone } from './lake-map.js';
+import { drawMap, nearestZone, sectorAt } from './lake-map.js';
 import { readingText, renderReadings } from './readings.js';
 
 const form = document.querySelector('#report-form');
@@ -24,6 +24,13 @@ const gpsButton = document.querySelector('#gps-zone');
 const gpsStatus = document.querySelector('#gps-status');
 const map = document.querySelector('#lake-map');
 const tiles = document.querySelector('#map-tiles');
+const cityMap = document.querySelector('#city-map');
+const cityTiles = document.querySelector('#city-map-tiles');
+const cityMarkers = document.querySelector('#city-markers');
+const lakeChoices = document.querySelector('#lake-choices');
+let cityPoints = [];
+let shoreViewport;
+let recentReportCount;
 const draftDialog = document.querySelector('#draft-dialog');
 const draftForm = document.querySelector('#draft-form');
 const draftStatus = document.querySelector('#draft-status');
@@ -71,6 +78,10 @@ function highlightZone() {
     marker.setAttribute('aria-label', marker.textContent + ' — ' + hotspotLabels[marker.dataset.status]);
   }
   renderEvidence();
+  const selected = currentLake?.zones.find(item => item.id === zone.value);
+  document.querySelector('#selected-shoreline').hidden = !selected;
+  document.querySelector('#selected-shoreline-label').textContent = selected ? currentLake.name + ' · ' + selected.name : '';
+  updateLakeProfile();
 }
 
 function textElement(tag, text, className) {
@@ -281,8 +292,76 @@ async function normalize(file) {
 }
 
 function redrawMap() {
-  if (currentLake?.kind === 'geographic') drawLakeMap(map, tiles, currentLake, markers);
+  shoreViewport = currentLake?.kind === 'geographic' ?
+    drawMap(map, tiles, currentLake.zones, markers, 16, 46) : null;
 }
+
+function redrawCity() {
+  drawMap(cityMap, cityTiles, cityPoints, cityMarkers, 13, 62);
+}
+
+function selectShoreline(id) {
+  if (zone.disabled) return;
+  zone.value = id;
+  gpsStatus.hidden = true;
+  zone.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function updateLakeProfile() {
+  if (!currentLake) return;
+  const real = currentLake.kind === 'geographic';
+  for (const button of [...cityMarkers.children, ...lakeChoices.children]) {
+    button.setAttribute('aria-pressed', String(button.dataset.mapId === currentLake.id));
+  }
+  document.querySelector('#profile-name').textContent = real ? currentLake.name : 'Choose a lake';
+  document.querySelector('#profile-locality').textContent = real ? currentLake.locality : '';
+  document.querySelector('#profile-description').textContent = real ? currentLake.description :
+    'Select a pin or name to explore its shoreline.';
+  const observations = document.querySelector('#profile-observations');
+  const watch = dashboard?.zones.filter(item => item.status !== 'none').length;
+  observations.textContent = real ?
+    currentLake.zones.length + ' reporting sectors' +
+    (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent reports in this session') +
+    (watch === undefined ? '' : ' · ' + watch + ' sectors with active evidence') : '';
+  const reference = document.querySelector('#lake-reference');
+  reference.hidden = !real;
+  if (real) reference.href = currentLake.reference;
+  document.querySelector('#view-shoreline').hidden = !real;
+}
+
+function buildCityExplorer() {
+  for (const lake of lakes.filter(item => item.kind === 'geographic')) {
+    const [latitude, longitude] = lake.center;
+    cityPoints.push({ id: lake.id, latitude, longitude });
+    const pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'city-pin';
+    pin.dataset.mapId = lake.id;
+    pin.append(textElement('span', lake.name));
+    const choice = textElement('button', lake.name, 'lake-choice');
+    choice.type = 'button';
+    choice.dataset.mapId = lake.id;
+    for (const button of [pin, choice]) {
+      button.addEventListener('click', () => {
+        if (!lakeSelect.disabled) setLake(lake.id);
+      });
+    }
+    cityMarkers.append(pin);
+    lakeChoices.append(choice);
+  }
+  redrawCity();
+}
+
+map.addEventListener('click', event => {
+  if (!shoreViewport || zone.disabled || event.target.closest('button,a')) return;
+  const rect = map.getBoundingClientRect();
+  const sector = sectorAt(currentLake, shoreViewport, event.clientX - rect.left, event.clientY - rect.top);
+  if (sector) selectShoreline(sector.id);
+  else {
+    gpsStatus.hidden = false;
+    gpsStatus.textContent = 'Choose a shoreline sector near one of the markers.';
+  }
+});
 
 function setLake(id) {
   const selected = lakes.find(item => item.id === id);
@@ -292,6 +371,10 @@ function setLake(id) {
   lakeSelect.value = id;
   requestId = crypto.randomUUID();
   dashboard = undefined;
+  recentReportCount = undefined;
+  document.querySelector('#map-help').textContent = geographic
+    ? 'Click a shoreline sector or its marker to set the location for your next upload.'
+    : 'Select a marker to see that zone’s evidence or choose a zone in the form.';
   document.querySelector('#map-title').textContent = selected.name;
   document.querySelector('#map-kind').textContent = geographic ? 'Approximate zones' : 'Illustrative';
   document.querySelector('#illustrative-map').toggleAttribute('hidden', geographic);
@@ -318,14 +401,12 @@ function setLake(id) {
     marker.className = 'marker';
     marker.textContent = item.name;
     marker.dataset.zoneId = item.id;
+    marker.dataset.mapId = item.id;
     if (!geographic) {
       marker.style.left = item.markerX * 100 + '%';
       marker.style.top = item.markerY * 100 + '%';
     }
-    marker.addEventListener('click', () => {
-      zone.value = item.id;
-      zone.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    marker.addEventListener('click', () => selectShoreline(item.id));
     markers.append(marker);
   }
   const url = new URL(window.location.href);
@@ -341,6 +422,7 @@ function setLake(id) {
 
 async function loadLakes() {
   lakes = await getJson('/api/lakes');
+  buildCityExplorer();
   for (const item of lakes) lakeSelect.add(new Option(item.name, item.id));
   const requested = new URLSearchParams(window.location.search).get('lake');
   return setLake(lakes.some(item => item.id === requested) ? requested : 'demo-lake');
@@ -349,6 +431,7 @@ async function loadLakes() {
 lakeSelect.addEventListener('change', () => setLake(lakeSelect.value));
 readingZone.addEventListener('change', loadReadings);
 new ResizeObserver(redrawMap).observe(map);
+new ResizeObserver(redrawCity).observe(cityMap);
 gpsButton.addEventListener('click', () => {
   const lake = currentLake;
   gpsStatus.hidden = false;
@@ -380,6 +463,8 @@ async function loadHistory() {
   try {
     const items = await getJson(lakeEndpoint('/api/reports'));
     if (lake !== currentLake) return;
+    recentReportCount = items.length;
+    updateLakeProfile();
     reports.replaceChildren();
     historyStatus.hidden = items.length > 0;
     historyStatus.textContent = 'Saved observations will appear here.';

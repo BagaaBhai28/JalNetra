@@ -52,7 +52,7 @@ The Supabase migration in `supabase/migrations` provisions lake-scoped membershi
 
 ### Bengaluru lake maps and water readings
 
-Choose **Ulsoor Lake** or **Sankey Tank** to open their OpenStreetMap basemap and select an approximate reporting sector. The lake locations were checked against the CPCB water-quality monitoring station list. Reporting sectors are application-defined and approximate.
+Open the **Bengaluru lake map** and select a named pin or use the name list. The explorer includes **Ulsoor Lake**, **Sankey Tank**, **Agara Lake**, **Madiwala Lake**, and **Bellandur Lake**. The lake profile shows its locality, a source reference, and recent session activity. Open the detailed shoreline map, then click near a reporting sector or click its marker and use **Go to photo upload**. The observation form carries the selected sector into the upload. Reporting sectors are application-defined and approximate.
 
 **Suggest zone from GPS** works when the browser can obtain an accurate location near the selected lake. The app saves the selected sector, while GPS coordinates stay in the browser. Manual zone selection is available. The illustrative Demo Lake stays available offline and uses labelled sample images.
 

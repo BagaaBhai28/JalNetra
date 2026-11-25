@@ -29,6 +29,24 @@ p { margin: 0; }
 .card-head h2 { margin: 0; font-size: 1.12rem; letter-spacing: -.02em; }
 .card-head p, .hint, .map-help, .upload p, .history p { color: var(--muted); font-size: .83rem; margin-top: 3px; }
 .tag { background: #ebf2e5; border-radius: 20px; padding: 5px 9px; font-size: .72rem; font-weight: 650; }
+.city-explorer { margin-bottom: 15px; }
+.city-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(245px, 1fr); }
+.city-map { min-height: 300px; height: clamp(300px, 40vw, 420px); aspect-ratio: auto; }
+.city-sidebar { padding: 15px 18px; border-left: 1px solid var(--line); }
+.lake-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.lake-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 18px; padding: 6px 9px; cursor: pointer; font-size: .78rem; }
+.lake-choice[aria-pressed="true"] { background: #174e3f; color: #fff; }
+.city-pin { position: absolute; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; width: 18px; height: 18px; padding: 0; background: #176c58; cursor: pointer; box-shadow: 0 1px 5px #1837318a; }
+.city-pin span { position: absolute; bottom: 17px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #183731; background: #fffdf4; border: 1px solid #a5bdaf; border-radius: 5px; padding: 2px 5px; font-size: .75rem; font-weight: 650; }
+.city-pin[data-map-id="madiwala-lake"] span { bottom: auto; top: 17px; }
+.city-pin[aria-pressed="true"] { background: #a14f28; z-index: 1; }
+.city-pin[aria-pressed="true"] span { color: #fff; background: #174e3f; }
+#lake-profile h3 { margin: 0 0 6px; font-size: 1.12rem; }
+#lake-profile p { margin: 0 0 8px; font-size: .83rem; color: var(--muted); }
+#profile-locality { font-weight: 650; }
+.profile-links { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.profile-links a, #selected-shoreline a { color: #16624d; font-size: .82rem; font-weight: 650; }
+#selected-shoreline { color: #183731; font-weight: 650; }
 .map-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 14px; padding: 10px 19px; }
 .map-controls > div { flex: 1 1 170px; max-width: 310px; }
 .map-controls button { margin-bottom: 3px; }
@@ -115,6 +133,9 @@ dialog textarea { min-height: 170px; }
 .report-list p { overflow-wrap: anywhere; }
 .report-list .tag { white-space: nowrap; }
 @media (max-width: 730px) {
+  .city-grid { grid-template-columns: 1fr; }
+  .city-sidebar { border-left: 0; border-top: 1px solid var(--line); }
+  .city-map { min-height: 265px; height: 300px; }
   .workspace { grid-template-columns: 1fr; }
   main { width: calc(100% - 24px); }
 }
