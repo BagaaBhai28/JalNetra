@@ -189,3 +189,13 @@ dialog textarea { min-height: 170px; }
   .report-list .tag { grid-column: 2; justify-self: start; }
 }
 
+.pilot-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+.pilot-summary { padding: 10px 18px 0; }
+.pilot-summary:empty { display: none; }
+.pilot-records { list-style: none; margin: 0; padding: 0 18px; }
+.pilot-records li { border-bottom: 1px solid var(--line); padding: 12px 0; overflow-wrap: anywhere; }
+.pilot-records li:last-child { border-bottom: 0; }
+.pilot-records h3 { margin: 0 0 5px; font-size: 1rem; }
+.pilot-records img { display: block; max-width: min(100%, 420px); max-height: 320px; margin: 7px 0; border-radius: 8px; }
+.pilot-records details { margin: 8px 0; }
+.pilot-records form { padding-inline: 0; }

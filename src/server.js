@@ -19,6 +19,9 @@ const assets = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/lake-map.js', ['lake-map.js', 'text/javascript; charset=utf-8']],
   ['/readings.js', ['readings.js', 'text/javascript; charset=utf-8']],
+  ['/photo-input.js', ['photo-input.js', 'text/javascript; charset=utf-8']],
+  ['/pilot.html', ['pilot.html', 'text/html; charset=utf-8']],
+  ['/pilot-app.js', ['pilot-app.js', 'text/javascript; charset=utf-8']],
 ]);
 const headers = {
   'Cache-Control': 'no-store',

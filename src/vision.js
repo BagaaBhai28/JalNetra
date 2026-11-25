@@ -114,12 +114,13 @@ const resultSchema = {
   },
 };
 
-export function createOpenAiVision({ apiKey, model, request = fetch }) {
+export function createOpenAiVision({ apiKey, model, request = fetch, gateway = false }) {
   if (!apiKey || !model) throw new Error('Set OPENAI_API_KEY and JALNETRA_VISION_MODEL for live analysis.');
   return {
     source: 'live_model',
     async analyse({ png, signal }) {
-      const response = await request('https://api.openai.com/v1/responses', {
+      const endpoint = gateway ? 'https://ai-gateway.vercel.sh/v1/responses' : 'https://api.openai.com/v1/responses';
+      const response = await request(endpoint, {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
         signal,

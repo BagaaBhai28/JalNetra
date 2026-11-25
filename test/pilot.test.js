@@ -36,3 +36,48 @@ test('pilot reports require a bearer token and forward it for row-level access',
   assert.deepEqual(await (await handle(authorized())).json(), { reports: [{ id: 'authorized-report' }] });
   assert.equal((await handle(authorized())).status, 401);
 });
+
+test('pilot writes enforce same origin and allow only assigned operators to run live vision', async () => {
+  const reportId = 'a1020000-0000-4000-8000-000000000001';
+  const lakeId = 'a1020000-0000-4000-8000-000000000002';
+  const user = 'a1020000-0000-4000-8000-000000000003';
+  const report = { id: reportId, lake_id: lakeId, photo_path: user + '/' + reportId + '.png' };
+  let operator = false, providerCalls = 0, saved;
+  const handle = createPilotHandler({ ...settings, apiKey: 'test', model: 'openai/test-model', gateway: true,
+    async visionRequest(url, options) {
+      assert.equal(url, 'https://ai-gateway.vercel.sh/v1/responses');
+      assert.equal(JSON.parse(options.body).model, 'openai/test-model');
+      providerCalls++;
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text',
+        text: JSON.stringify({ imageQuality: 'usable', detections: [{ category: 'foam', cue: 'White bubbles along the shoreline' }] }),
+      }] }] });
+    },
+    async request(url, options) {
+      if (url.pathname === '/rest/v1/pilot_reports') return Response.json([report]);
+      if (url.pathname === '/auth/v1/user') return Response.json({ id: user });
+      if (url.pathname === '/rest/v1/pilot_memberships') {
+        assert.equal(url.searchParams.get('user_id'), 'eq.' + user);
+        return Response.json(operator ? [{ role: 'operator' }] : []);
+      }
+      if (url.pathname.startsWith('/storage/v1/object/authenticated/')) return new Response(Buffer.from([1, 2, 3]));
+      if (url.pathname === '/rest/v1/pilot_review_events' && options.method === 'GET') return Response.json(saved ? [saved] : []);
+      if (url.pathname === '/rest/v1/pilot_review_events' && options.method === 'POST') {
+        saved = JSON.parse(options.body);
+        return Response.json([saved], { status: 201 });
+      }
+      throw new Error('Unexpected request');
+    },
+  });
+  const analyze = origin => handle(new Request(host + '/api/pilot/analyze', {
+    method: 'POST', headers: { Authorization: 'Bearer demo.token.value', Origin: origin },
+    body: JSON.stringify({ reportId }),
+  }));
+  assert.equal((await analyze('https://other.example')).status, 403);
+  assert.equal((await analyze(host)).status, 403);
+  assert.equal(providerCalls, 0);
+  operator = true;
+  assert.equal((await analyze(host)).status, 201);
+  assert.equal(saved.model_output.detections[0].category, 'foam');
+  assert.equal((await analyze(host)).status, 200);
+  assert.equal(providerCalls, 1);
+});

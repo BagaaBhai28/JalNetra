@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>JalNetra · Shared lake reporting</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/pilot-app.js"></script>
+</head>
+<body>
+<header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" href="/">Bengaluru lake map</a></header>
+<main>
+  <section class="intro"><h1>Shared lake reporting</h1><p>Sign in to record shoreline photos and concerns, or review evidence for your assigned lakes.</p></section>
+  <p id="pilot-status" class="feedback" role="status"></p>
+  <section class="card" id="pilot-auth">
+    <div class="card-head"><h2>JalNetra account</h2></div>
+    <form id="pilot-login">
+      <label for="pilot-email">Email</label><input type="email" id="pilot-email" name="email" required maxlength="254" autocomplete="email">
+      <label for="pilot-password">Password</label><input type="password" id="pilot-password" name="password" required minlength="8" maxlength="128" autocomplete="current-password">
+      <div class="pilot-actions"><button class="primary" type="submit" value="signin">Sign in</button><button class="secondary" type="submit" value="signup">Create citizen account</button></div>
+    </form>
+  </section>
+  <div id="pilot-workspace" hidden>
+    <section class="card">
+      <div class="card-head"><div><h2 id="pilot-account">Your account</h2><p id="pilot-role"></p></div><button type="button" id="pilot-signout" class="secondary">Sign out</button></div>
+      <div class="map-controls"><div><label for="pilot-lake">Lake</label><select id="pilot-lake"></select></div><button class="secondary" id="pilot-enroll" type="button" hidden>Join this lake as a citizen</button></div>
+    </section>
+    <section class="card history" id="pilot-admin" hidden>
+      <div class="card-head"><div><h2>Manage lake roles</h2><p>People appear here after joining this lake.</p></div></div>
+      <form id="pilot-members">
+        <label for="pilot-member">Account ID</label><input id="pilot-member" required maxlength="36">
+        <label for="pilot-member-role">Role</label><select id="pilot-member-role"><option value="operator">Operator</option><option value="citizen">Citizen</option></select>
+        <button class="primary" type="submit">Update role</button>
+      </form>
+      <ul id="pilot-member-list" class="pilot-records"></ul>
+    </section>
+    <div class="workspace history" id="pilot-intake" hidden>
+      <section class="card"><div class="card-head"><h2>Submit a shoreline photo</h2></div>
+        <form id="pilot-photo-form">
+          <label for="pilot-zone">Shoreline side</label><select id="pilot-zone" name="zone_id" required></select>
+          <label for="pilot-observed">Observed at (device time)</label><input type="datetime-local" id="pilot-observed" required>
+          <label for="pilot-photo">Photo (JPEG or PNG, up to 5 MB)</label><input type="file" id="pilot-photo" accept="image/jpeg,image/png" required>
+          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (°C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
+          <label for="pilot-note">Optional notes</label><textarea id="pilot-note" name="note" maxlength="500" rows="2"></textarea>
+          <button class="primary" type="submit">Save shared observation</button>
+        </form>
+      </section>
+      <section class="card"><div class="card-head"><h2>Raise a concern</h2></div>
+        <form id="pilot-concern-form">
+          <label for="pilot-concern-zone">Shoreline side</label><select id="pilot-concern-zone" name="zone_id" required></select>
+          <label for="pilot-concern-type">Concern type</label>
+          <select id="pilot-concern-type" name="category" required><option value="dumping">Waste dumping</option><option value="suspected-discharge">Suspected industrial or wastewater discharge</option><option value="sewage">Sewage or drain overflow</option><option value="other">Other shoreline concern</option></select>
+          <label for="pilot-concern-text">What did you observe?</label><textarea id="pilot-concern-text" name="description" maxlength="500" rows="4" required></textarea>
+          <p class="hint">Describe what you saw and omit names and contact details. Authorized lake operators can view your submission.</p>
+          <button class="primary" type="submit">Save shared concern</button>
+        </form>
+      </section>
+    </div>
+    <section class="card history"><div class="card-head"><div><h2>Lake reports</h2><p id="pilot-report-scope"></p></div><button class="secondary" id="pilot-reload" type="button">Refresh</button></div><p id="pilot-corroboration" class="pilot-summary"></p><ul id="pilot-reports" class="pilot-records"></ul></section>
+    <section class="card history"><div class="card-head"><h2>Lake concerns</h2></div><ul id="pilot-concerns" class="pilot-records"></ul></section>
+  </div>
+</main>
+</body>
+</html>

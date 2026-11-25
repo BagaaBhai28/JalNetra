@@ -41,6 +41,9 @@ const hosted = createHostedHandler(store);
 const pilot = createPilotHandler({
   url: process.env.SUPABASE_URL,
   publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+  apiKey: process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN,
+  model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
+  gateway: !process.env.OPENAI_API_KEY,
 });
 
 export default {
