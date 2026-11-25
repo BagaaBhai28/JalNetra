@@ -21,7 +21,7 @@
     </section>
     <section class="card city-explorer" aria-labelledby="city-title">
       <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>From the airport to Electronic City. Drag to explore or zoom in to see more lake names.</p></div></div>
-      <div class="city-grid">
+      <div class="city-grid" id="city-grid">
         <div class="city-map-frame" id="city-map-frame">
           <div class="map city-map" id="city-map" tabindex="0" role="region" aria-label="Interactive Bengaluru map. Arrow keys pan, plus and minus zoom, Home resets.">
             <div id="city-map-tiles" class="map-tiles" aria-hidden="true"></div>
@@ -34,15 +34,24 @@
             <button id="map-reset" type="button" aria-label="Show all Bengaluru" title="Show all Bengaluru">&#8962;</button>
             <button id="map-expand" type="button" aria-label="Expand map" title="Expand map" aria-pressed="false">&#10530;</button>
           </div>
+          <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>
+        </div>
+        <div class="city-sidebar">
+          <div id="city-search-panel">
+            <label for="lake-search">Find a lake</label>
+            <input type="search" id="lake-search" placeholder="Search name or area">
+            <p id="lake-count" class="hint" role="status">Loading lakes&hellip;</p>
+            <div id="lake-choices" class="lake-choices" aria-label="Select a Bengaluru lake"></div>
+          </div>
           <section id="lake-profile" aria-labelledby="profile-name" hidden>
-            <div class="profile-heading">
-              <div><h3 id="profile-name"></h3><p id="profile-locality"></p></div>
-              <button id="close-lake" type="button" aria-label="Close lake details" title="Close lake details">&times;</button>
-            </div>
+            <button id="close-lake" type="button" class="inline-action back-to-lakes">&larr; Back to lake search</button>
+            <h3 id="profile-name"></h3>
+            <p id="profile-locality"></p>
             <p id="profile-description"></p>
             <p id="profile-observations"></p>
-            <p class="sector-help">Choose a shoreline side to add a photo or readings. Reporting sectors are approximate.</p>
-            <div id="sector-choices" class="sector-choices" aria-label="Shoreline sectors"></div>
+            <h4 id="sector-title">Shoreline sides</h4>
+            <p class="sector-help">Select a side to upload a photo and add readings or notes. Reporting sectors are approximate.</p>
+            <div id="sector-choices" class="sector-choices" role="group" aria-labelledby="sector-title"></div>
             <div class="profile-links">
               <a id="lake-reference" target="_blank" rel="noopener">Lake reference</a>
               <button id="report-toggle" type="button" class="inline-action" hidden></button>
@@ -51,13 +60,6 @@
             <p id="city-status" role="status"></p>
             <div id="city-report"></div>
           </section>
-          <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>
-        </div>
-        <div class="city-sidebar">
-          <label for="lake-search">Find a lake</label>
-          <input type="search" id="lake-search" placeholder="Search name or area">
-          <p id="lake-count" class="hint" role="status">Loading lakes&hellip;</p>
-          <div id="lake-choices" class="lake-choices" aria-label="Select a Bengaluru lake"></div>
         </div>
       </div>
     </section>

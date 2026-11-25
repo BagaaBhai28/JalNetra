@@ -134,7 +134,8 @@ export function zoomViewport(viewport, zoom, x, y, nextX = x, nextY = y) {
 export function interactiveMap(surface, render, pick) {
   const pointers = new Map();
   let viewport;
-  let overview = true;
+  let fitted = true;
+  let fitTarget;
   let dragged = false;
   let frame;
   let wheelTime = -Infinity;
@@ -148,25 +149,24 @@ export function interactiveMap(surface, render, pick) {
       if (viewport) render(viewport);
     });
   }
-  function fit(points = bengaluruExtent, reserveShoreline = false) {
+  function fit(points = bengaluruExtent, shoreline = false) {
     const { clientWidth: width, clientHeight: height } = surface;
-    const inset = reserveShoreline ? (width < 560 ? 175 : 140) : 0;
-    viewport = fitMap(points, width, Math.max(120, height - inset), reserveShoreline ? 17 : 13, reserveShoreline ? 38 : 32);
-    viewport.height = height;
-    overview = !reserveShoreline;
+    viewport = fitMap(points, width, height, shoreline ? 18 : 13, shoreline ? 44 : 32);
+    fitTarget = [points, shoreline];
+    fitted = true;
     draw();
   }
   function zoomBy(amount, x = viewport.width / 2, y = viewport.height / 2) {
     const zoom = clampZoom(viewport.zoom + amount);
     if (zoom === viewport.zoom) return;
     viewport = zoomViewport(viewport, zoom, x, y);
-    overview = false;
+    fitted = false;
     draw();
   }
   function pan(dx, dy) {
     viewport.left -= dx;
     viewport.top -= dy;
-    overview = false;
+    fitted = false;
     draw();
   }
   function relative(x, y) {
@@ -205,7 +205,7 @@ export function interactiveMap(surface, render, pick) {
         const zoom = clampZoom(viewport.zoom + Math.sign(steps));
         viewport = zoomViewport(viewport, zoom, before.x, before.y, after.x, after.y);
         pinchSpan = after.span;
-        overview = false;
+        fitted = false;
         draw();
         return;
       }
@@ -243,13 +243,13 @@ export function interactiveMap(surface, render, pick) {
     if (movements[event.key]) pan(...movements[event.key]);
     else if (event.key === '+' || event.key === '=') zoomBy(1);
     else if (event.key === '-') zoomBy(-1);
-    else if (event.key === 'Home') fit();
+    else if (event.key === 'Home') fit(...fitTarget);
     else return;
     event.preventDefault();
   });
   fit();
   new ResizeObserver(() => {
-    if (overview) fit();
+    if (fitted) fit(...fitTarget);
     else {
       const { clientWidth: width, clientHeight: height } = surface;
       viewport.left += (viewport.width - width) / 2;

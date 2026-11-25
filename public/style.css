@@ -35,9 +35,13 @@ p { margin: 0; }
 .city-map { height: 100%; aspect-ratio: auto; cursor: grab; touch-action: none; user-select: none; }
 .city-map.is-dragging { cursor: grabbing; }
 .city-map:focus-visible { outline: 2px solid #174e3f; outline-offset: -2px; }
-.city-map-frame.is-expanded { position: fixed; z-index: 5; inset: 0; height: 100dvh; }
+.city-grid.is-expanded { position: fixed; z-index: 5; inset: 0; height: 100dvh; grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 430px); background: var(--white); }
+.city-grid.is-expanded .city-map-frame { height: 100%; min-height: 0; }
+.city-grid.is-expanded .city-sidebar { min-height: 0; }
 .map-expanded { overflow: hidden; }
 .city-sidebar { padding: 15px 18px; border-left: 1px solid var(--line); min-width: 0; }
+.city-sidebar:has(#lake-profile:not([hidden])), .city-grid.is-expanded .city-sidebar { overflow: auto; overscroll-behavior: contain; max-height: clamp(300px, 40vw, 420px); }
+.city-grid.is-expanded .city-sidebar { max-height: none; padding: 20px; }
 .lake-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 280px; overflow: auto; align-content: start; }
 .lake-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 18px; padding: 6px 9px; cursor: pointer; font-size: .78rem; }
 .lake-choice[aria-pressed="true"] { background: #174e3f; color: #fff; }
@@ -53,20 +57,20 @@ p { margin: 0; }
 .city-landmark { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; padding: 2px 5px; border-radius: 4px; background: #213d43; color: white; font-size: .68rem; font-weight: 650; }
 #city-landmarks { pointer-events: none; }
 .city-controls { position: absolute; z-index: 3; right: 10px; top: 10px; display: grid; gap: 4px; }
-.city-controls button, #close-lake { border: 1px solid #a5bdaf; background: #fbfdf9; color: #174137; border-radius: 7px; width: 37px; height: 37px; padding: 0; cursor: pointer; font-size: 1.25rem; }
-.city-controls button:hover, #close-lake:hover { background: #e2eedf; }
-#lake-profile { position: absolute; z-index: 2; inset: auto 12px 22px; max-width: 375px; max-height: 58%; overflow: auto; overscroll-behavior: contain; padding: 11px 12px; background: var(--white); border: 1px solid #b8cfc0; border-radius: 12px; box-shadow: 0 5px 22px #19372c35; }
-#lake-profile.is-reporting { max-height: 69%; }
-.profile-heading { display: flex; align-items: start; justify-content: space-between; gap: 9px; }
-#close-lake { flex: 0 0 auto; width: 30px; height: 30px; }
-#lake-profile h3 { margin: 0 0 6px; font-size: 1.12rem; }
+.city-controls button { border: 1px solid #a5bdaf; background: #fbfdf9; color: #174137; border-radius: 7px; width: 37px; height: 37px; padding: 0; cursor: pointer; font-size: 1.25rem; }
+.city-controls button:hover { background: #e2eedf; }
+#lake-profile .back-to-lakes { margin-bottom: 13px; }
+#lake-profile h3 { margin: 0 0 5px; font-size: 1.5rem; letter-spacing: -.03em; }
+#lake-profile h4 { margin: 15px 0 5px; font-size: .97rem; }
 #lake-profile p { margin: 0 0 8px; font-size: .83rem; color: var(--muted); }
 #lake-profile .sector-help { margin-bottom: 4px; }
 #profile-locality { font-weight: 650; }
 .profile-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
 .profile-links a, #selected-shoreline a { color: #16624d; font-size: .82rem; font-weight: 650; }
-.sector-choices { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 7px; }
-.sector-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: .8rem; }
+.sector-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 8px 0 12px; }
+.sector-choice { display: grid; gap: 3px; text-align: left; border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 8px; padding: 8px 9px; cursor: pointer; font-size: .8rem; }
+.sector-choice:hover { background: #e2eedf; }
+.sector-status { font-size: .72rem; }
 .sector-choice[aria-pressed="true"] { background: #174e3f; color: #fff; }
 .inline-action, #city-gps button { border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; color: #16624d; font-size: .82rem; font-weight: 650; text-decoration: underline; }
 #city-report .form-card { margin-top: 9px; border-radius: 8px; box-shadow: none; }
@@ -168,7 +172,8 @@ dialog textarea { min-height: 170px; }
   .city-sidebar { border-left: 0; border-top: 1px solid var(--line); }
   .city-map-frame { height: 300px; }
   .lake-choices { max-height: 119px; }
-  #lake-profile { max-width: 100%; max-height: 63%; inset-inline: 8px; }
+  .city-grid.is-expanded { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(140px, 44dvh) minmax(0, 1fr); }
+  .city-grid.is-expanded .city-sidebar { padding: 15px 18px; }
   .workspace { grid-template-columns: 1fr; }
   main { width: calc(100% - 24px); }
 }
