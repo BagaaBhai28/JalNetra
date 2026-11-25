@@ -44,6 +44,33 @@ function generatedText(mode, category, evidence) {
   return lines.join('\n');
 }
 
+export function createPilotComplaint(lake, zone, point, group) {
+  const issue = categoryNames[group.category];
+  const localContact = lake.slug === 'devanahalli-lake' ? {
+    name: 'Devanahalli Town Municipal Council',
+    url: 'https://bangalorerural.nic.in/en/public-utility/devanahalli-tmc/',
+  } : null;
+  const filing = { name: 'Karnataka Janaspandana grievance portal', url: 'https://ipgrs.karnataka.gov.in/' };
+  const lines = [
+    'Subject: Request to inspect ' + issue + ' at ' + lake.name,
+    '',
+    'Please inspect the shoreline at ' + zone.name + ', ' + lake.name + '.',
+    group.evidence.length + ' distinct citizens reported matching visible evidence within the last 48 hours. A lake operator reviewed the reports.',
+  ];
+  if (Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude)) {
+    lines.push('Approximate reporting sector: ' + point.latitude.toFixed(5) + ', ' + point.longitude.toFixed(5));
+  }
+  lines.push('', 'Supporting observations');
+  for (const report of group.evidence) {
+    lines.push('- ' + report.id + ' · ' + formatTime.format(new Date(report.observedAt)) + ' IST');
+    const readings = [report.ph != null ? 'pH ' + report.ph : '',
+      report.temperatureC != null ? report.temperatureC + ' °C' : ''].filter(Boolean);
+    if (readings.length) lines.push('  Citizen-reported readings: ' + readings.join(', '));
+  }
+  lines.push('', 'Please share the inspection findings or forward this request to the responsible authority.');
+  return { recipient: localContact?.name ?? '', localContact, filing, draftText: lines.join('\n'), evidence: group.evidence };
+}
+
 export function createDraft(db, mode, zoneId, category, now) {
   const evidence = currentEvidence(db, mode, now, zoneId, category);
   if (evidence.length < 2) return null;

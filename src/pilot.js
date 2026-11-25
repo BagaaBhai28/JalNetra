@@ -1,10 +1,13 @@
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
 import { createOpenAiVision, categories } from './vision.js';
+import { lakes } from './lakes.js';
+import { groupPilotHotspots, pilotHotspotWindowMs } from './pilot-hotspots.js';
+import { createPilotComplaint } from './complaints.js';
 
 const routes = {
-  status: 'GET', signup: 'POST', signin: 'POST', refresh: 'POST', signout: 'POST', account: 'GET',
+  status: 'GET', signup: 'POST', signin: 'POST', refresh: 'POST', recover: 'POST', password: 'POST', signout: 'POST', account: 'GET',
   catalog: 'GET', enroll: 'POST', members: 'GET POST', reports: 'GET', upload: 'POST', concerns: 'GET POST',
-  photo: 'GET', analyze: 'POST', review: 'POST',
+  photo: 'GET', analyze: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
 };
 const validUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const tokenPattern = /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/i;
@@ -68,7 +71,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
     if (!Object.hasOwn(routes, action)) return null;
     if (!routes[action].split(' ').includes(input.method)) return reply(405, { error: { code: 'METHOD_NOT_ALLOWED' } });
     const bearer = input.headers.get('authorization');
-    const authAction = ['status', 'signup', 'signin', 'refresh'].includes(action);
+    const authAction = ['status', 'signup', 'signin', 'refresh', 'recover'].includes(action);
     if (!authAction && !tokenPattern.test(bearer ?? '')) {
       return reply(401, { error: { code: 'PILOT_SIGN_IN_REQUIRED', message: 'Sign in to continue.' } });
     }
@@ -105,12 +108,26 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       requireValue(report, 'REPORT_NOT_FOUND', 'Report is unavailable.', 404);
       return report;
     };
-    const requireOperator = async report => {
+    const requireOperator = async lakeId => {
       const user = await account();
       const rows = await result(rest('pilot_memberships', { user_id: 'eq.' + user.id,
-        lake_id: 'eq.' + report.lake_id, role: 'in.(operator,admin)', select: 'role' }));
+        lake_id: 'eq.' + lakeId, role: 'in.(operator,admin)', select: 'role' }));
       requireValue(rows.length, 'PILOT_ACCESS_DENIED', 'An operator or administrator assigned to this lake is required.', 403);
     };
+    async function hotspotsFor(lakeId, now) {
+      const reports = [];
+      const period = '(observed_at.gte.' + new Date(now - pilotHotspotWindowMs).toISOString() +
+        ',observed_at.lte.' + new Date(now).toISOString() + ')';
+      const pageSize = 100;
+      for (let offset = 0; ; offset += pageSize) {
+        const page = await result(rest('pilot_reports', {
+          lake_id: 'eq.' + lakeId, and: period, select: reportSelect,
+          order: 'observed_at.desc,id.desc', limit: String(pageSize), offset: String(offset),
+        }));
+        reports.push(...page);
+        if (page.length < pageSize) return groupPilotHotspots(reports, now);
+      }
+    }
     async function evidence(path) {
       const response = await call('/storage/v1/object/authenticated/' + bucket + '/' + path);
       requireValue(response.ok, 'PHOTO_UNAVAILABLE', 'Photo is unavailable.', response.status === 401 ? 401 : 404);
@@ -125,6 +142,23 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
           return reply(200, { ready: true, provider: 'supabase', schemaVersion: 2, visionConfigured: Boolean(vision) });
         }
         throw new Error('Unexpected schema');
+      }
+      if (action === 'recover') {
+        const { email } = await jsonInput(input);
+        requireValue(typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+$/.test(email),
+          'INVALID_EMAIL', 'Enter a valid email address.');
+        const redirect = new URL('/pilot.html', incoming.origin).href;
+        await send('/auth/v1/recover?' + new URLSearchParams({ redirect_to: redirect }), { email });
+        return reply(200, { message: 'If this address has an account, check your email for the reset link.' });
+      }
+      if (action === 'password') {
+        const { password } = await jsonInput(input);
+        requireValue(typeof password === 'string' && password.length >= 8 && password.length <= 128,
+          'INVALID_PASSWORD', 'Enter a password between 8 and 128 characters.');
+        await result('/auth/v1/user', {
+          method: 'PUT', body: JSON.stringify({ password }), headers: { 'Content-Type': 'application/json' },
+        });
+        return reply(200, { updated: true });
       }
       if (['signin', 'signup', 'refresh'].includes(action)) {
         const { email, password, refresh_token } = await jsonInput(input);
@@ -153,7 +187,37 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       }
       if (action === 'catalog') {
         const rows = await result(rest('pilot_lakes', { select: 'id,name,slug,pilot_zones(id,name,slug)', order: 'name' }));
-        return reply(200, { lakes: rows });
+        const locations = new Map(lakes.map(lake => [lake.id, lake]));
+        return reply(200, { lakes: rows.map(lake => ({
+          ...lake,
+          pilot_zones: lake.pilot_zones.map(zone => {
+            const point = locations.get(lake.slug)?.zones.find(item => item.id === zone.slug);
+            return point ? { ...zone, latitude: point.latitude, longitude: point.longitude } : zone;
+          }),
+        })) });
+      }
+      if (action === 'hotspots') {
+        const lakeId = incoming.searchParams.get('lakeId');
+        requireValue(validUuid.test(lakeId ?? ''), 'INVALID_LAKE', 'Choose a catalog lake.');
+        await requireOperator(lakeId);
+        return reply(200, { groups: await hotspotsFor(lakeId, Date.now()) });
+      }
+      if (action === 'complaint') {
+        const { lakeId, zoneId, category } = await jsonInput(input);
+        requireValue([lakeId, zoneId].every(id => validUuid.test(id ?? '')) && categories.includes(category),
+          'INVALID_COMPLAINT', 'Choose a lake, shoreline sector, and visible category.');
+        await requireOperator(lakeId);
+        const groups = await hotspotsFor(lakeId, Date.now());
+        const group = groups.find(item => item.zoneId === zoneId && item.category === category);
+        requireValue(group?.status === 'priority_hotspot', 'HOTSPOT_NOT_ELIGIBLE',
+          'A complaint draft requires two distinct, recent reviewed reports in this sector and category.', 409);
+        const [lake] = await result(rest('pilot_lakes', {
+          id: 'eq.' + lakeId, select: 'name,slug,pilot_zones(id,name,slug)',
+        }));
+        const zone = lake?.pilot_zones.find(item => item.id === zoneId);
+        requireValue(zone, 'INVALID_COMPLAINT', 'This shoreline sector is unavailable.', 404);
+        const point = lakes.find(item => item.id === lake.slug)?.zones.find(item => item.id === zone.slug);
+        return reply(200, createPilotComplaint(lake, zone, point, group));
       }
       if (action === 'enroll') {
         const { lakeId } = await jsonInput(input);
@@ -192,7 +256,22 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
           select: action === 'reports' ? (lakeId ? reportSelect : photoColumns) : 'id,lake_id,zone_id,category,description,created_at',
           order: 'created_at.desc,id.desc', limit: '25', ...(lakeId ? { lake_id: 'eq.' + lakeId } : {}),
         };
+        const page = incoming.searchParams.get('page');
+        const review = incoming.searchParams.get('review');
+        if (action === 'reports' && page !== null) {
+          requireValue(/^\d{1,5}$/.test(page), 'INVALID_PAGE', 'Choose a valid report page.');
+          params.offset = String(Number(page) * 25);
+          params.limit = '26';
+        }
+        if (action === 'reports' && review === 'pending') {
+          requireValue(lakeId, 'INVALID_LAKE', 'Choose a catalog lake.');
+          await requireOperator(lakeId);
+          params.select += ',reviewed:pilot_review_events!pilot_review_events_lake_id_report_id_fkey(id)';
+          params['reviewed.action'] = 'neq.model';
+          params.reviewed = 'is.null';
+        }
         const rows = await result(rest(action === 'reports' ? 'pilot_reports' : 'pilot_concerns', params));
+        if (action === 'reports' && page !== null) return reply(200, { reports: rows.slice(0, 25), hasMore: rows.length > 25 });
         return reply(200, { [action]: rows });
       }
       if (action === 'concerns') {
@@ -260,7 +339,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       }
       const data = await jsonInput(input);
       const report = await lookup(data.reportId);
-      await requireOperator(report);
+      await requireOperator(report.lake_id);
       const event = { lake_id: report.lake_id, report_id: report.id };
       if (action === 'analyze') {
         const [existing] = await result(rest('pilot_review_events', { report_id: 'eq.' + report.id, action: 'eq.model', limit: '1' }));

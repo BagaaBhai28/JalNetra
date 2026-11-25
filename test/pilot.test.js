@@ -42,12 +42,13 @@ test('pilot writes enforce same origin and allow only assigned operators to run 
   const lakeId = 'a1020000-0000-4000-8000-000000000002';
   const user = 'a1020000-0000-4000-8000-000000000003';
   const report = { id: reportId, lake_id: lakeId, photo_path: user + '/' + reportId + '.png' };
-  let operator = false, providerCalls = 0, saved;
+  let operator = false, providerCalls = 0, saved, providerAvailable = false;
   const handle = createPilotHandler({ ...settings, apiKey: 'test', model: 'openai/test-model', gateway: true,
     async visionRequest(url, options) {
       assert.equal(url, 'https://ai-gateway.vercel.sh/v1/responses');
       assert.equal(JSON.parse(options.body).model, 'openai/test-model');
       providerCalls++;
+      if (!providerAvailable) return new Response(null, { status: 503 });
       return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text',
         text: JSON.stringify({ imageQuality: 'usable', detections: [{ category: 'foam', cue: 'White bubbles along the shoreline' }] }),
       }] }] });
@@ -76,10 +77,15 @@ test('pilot writes enforce same origin and allow only assigned operators to run 
   assert.equal((await analyze(host)).status, 403);
   assert.equal(providerCalls, 0);
   operator = true;
+  const failed = await analyze(host);
+  assert.equal(failed.status, 502);
+  assert.equal((await failed.json()).error.code, 'VISION_UNAVAILABLE');
+  assert.equal(saved, undefined);
+  providerAvailable = true;
   assert.equal((await analyze(host)).status, 201);
   assert.equal(saved.model_output.detections[0].category, 'foam');
   assert.equal((await analyze(host)).status, 200);
-  assert.equal(providerCalls, 1);
+  assert.equal(providerCalls, 2);
 });
 
 test('pilot enrollment accepts a successful empty response from Supabase', async () => {
@@ -97,4 +103,187 @@ test('pilot enrollment accepts a successful empty response from Supabase', async
   }));
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { enrolled: true });
+});
+
+
+test('pilot hotspot map uses the latest eligible review and counts each citizen once', async () => {
+  const lakeId = 'a1020000-0000-4000-8000-000000000002';
+  const now = Date.now();
+  const observed = age => new Date(now - age * 3600000).toISOString();
+  const entry = (action, created_at, category = 'foam') => ({ action, created_at, category });
+  const report = (id, reporter_id, zone_id, age, events) =>
+    ({ id, reporter_id, zone_id, observed_at: observed(age), events, ph: 7.2 });
+  const reviewed = [entry('confirm', observed(1))];
+  const rows = [
+    report('A', 'citizen-1', 'north', 2, reviewed),
+    report('B', 'citizen-1', 'north', 3, reviewed),
+    report('C', 'citizen-2', 'north', 4, reviewed),
+    report('D', 'citizen-3', 'north', 2, [...reviewed, entry('dismiss', observed(0.5), null)]),
+    report('E', 'citizen-4', 'north', 2, [...reviewed, entry('duplicate', observed(0.5), null)]),
+    report('F', 'citizen-5', 'north', 49, reviewed),
+    report('G', 'citizen-6', 'north', 1, [entry('model', observed(0))]),
+    report('H', 'citizen-7', 'south', 1, reviewed),
+    report('I', 'citizen-8', 'north', 2, [entry('correct', observed(1), 'dumping')]),
+  ];
+  let operator = false;
+  const handle = createPilotHandler({ ...settings, async request(url) {
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: 'operator-1' });
+    if (url.pathname === '/rest/v1/pilot_memberships') return Response.json(operator ? [{ role: 'operator' }] : []);
+    assert.equal(url.pathname, '/rest/v1/pilot_reports');
+    assert.equal(url.searchParams.get('lake_id'), 'eq.' + lakeId);
+    assert.match(url.searchParams.get('and'), /^\(observed_at\.gte\..+,observed_at\.lte\./);
+    return Response.json(rows);
+  } });
+  const dashboard = () => handle(new Request(host + '/api/pilot/hotspots?lakeId=' + lakeId, {
+    headers: { Authorization: 'Bearer demo.token.value' },
+  }));
+  assert.equal((await dashboard()).status, 403);
+  operator = true;
+  const response = await dashboard();
+  assert.equal(response.status, 200);
+  const { groups } = await response.json();
+  assert.deepEqual(groups.map(group => [group.zoneId, group.category, group.status,
+    group.evidence.map(item => item.id)]), [
+    ['north', 'foam', 'priority_hotspot', ['A', 'C']],
+    ['north', 'dumping', 'watch', ['I']],
+    ['south', 'foam', 'watch', ['H']],
+  ]);
+});
+
+
+test('pilot complaint rechecks lake access and current Priority evidence before generating a draft', async () => {
+  const lakeId = 'a1020000-0000-4000-8000-000000000002';
+  const zoneId = 'a1020000-0000-4000-8000-000000000001';
+  const recent = new Date(Date.now() - 60000).toISOString();
+  const first = { id: 'report-one', zone_id: zoneId, reporter_id: 'citizen-1', observed_at: recent,
+    ph: 7.2, events: [{ action: 'confirm', category: 'foam', created_at: recent }] };
+  const second = { ...first, id: 'report-two', reporter_id: 'citizen-2', ph: null, temperature_c: 25 };
+  let operator = false, reports = [first];
+  const handle = createPilotHandler({ ...settings, async request(url) {
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: 'operator-1' });
+    if (url.pathname === '/rest/v1/pilot_memberships') return Response.json(operator ? [{ role: 'operator' }] : []);
+    if (url.pathname === '/rest/v1/pilot_reports') return Response.json(reports);
+    assert.equal(url.pathname, '/rest/v1/pilot_lakes');
+    return Response.json([{ name: 'Devanahalli Lake', slug: 'devanahalli-lake',
+      pilot_zones: [{ id: zoneId, name: 'North sector', slug: 'devanahalli-lake-north' }] }]);
+  } });
+  const generate = () => handle(new Request(host + '/api/pilot/complaint', {
+    method: 'POST', headers: { Authorization: 'Bearer demo.token.value', Origin: host },
+    body: JSON.stringify({ lakeId, zoneId, category: 'foam' }),
+  }));
+  assert.equal((await generate()).status, 403);
+  operator = true;
+  assert.equal((await generate()).status, 409);
+  reports = [first, second];
+  const response = await generate();
+  assert.equal(response.status, 200);
+  const draft = await response.json();
+  assert.equal(draft.recipient, 'Devanahalli Town Municipal Council');
+  assert.match(draft.filing.url, /^https:\/\/ipgrs\.karnataka\.gov\.in\//);
+  assert.match(draft.draftText, /North sector, Devanahalli Lake/);
+  assert.match(draft.draftText, /Approximate reporting sector/);
+  assert.match(draft.draftText, /report-one.+IST/);
+  assert.match(draft.draftText, /report-two.+IST/);
+  assert.match(draft.draftText, /Citizen-reported readings: pH 7\.2/);
+  assert.match(draft.draftText, /Citizen-reported readings: 25 °C/);
+  assert.equal(draft.evidence.length, 2);
+  reports = [first, { ...second, events: [{ action: 'dismiss', created_at: recent }] }];
+  assert.equal((await generate()).status, 409);
+});
+
+test('pilot photo intake validates readings and stores the normalized photo with its lake data', async () => {
+  const citizenId = 'a1020000-0000-4000-8000-000000000001';
+  const lakeId = 'a1020000-0000-4000-8000-000000000002';
+  const zoneId = 'a1020000-0000-4000-8000-000000000003';
+  const requestId = 'a1020000-0000-4000-8000-000000000004';
+  let photo, saved;
+  const handle = createPilotHandler({ ...settings, async request(url, options) {
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: citizenId });
+    if (url.pathname === '/rest/v1/pilot_memberships') return Response.json([{ role: 'citizen' }]);
+    if (url.pathname === '/rest/v1/pilot_zones') return Response.json([{ id: zoneId }]);
+    if (url.pathname === '/rest/v1/pilot_reports' && options.method === 'GET') return Response.json(saved ? [saved] : []);
+    if (url.pathname.startsWith('/storage/v1/object/')) {
+      photo = options.body;
+      assert.equal(options.headers['Content-Type'], 'image/png');
+      return new Response(null, { status: 201 });
+    }
+    assert.equal(url.pathname, '/rest/v1/pilot_reports');
+    saved = { ...JSON.parse(options.body), id: 'stored-report' };
+    return Response.json([saved], { status: 201 });
+  } });
+  const upload = ph => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries({ id: requestId, lake_id: lakeId, zone_id: zoneId,
+      observed_at: new Date().toISOString(), note: 'Shoreline observation', width: '2', height: '1',
+      ph, temperature_c: '25.5',
+    })) form.set(key, value);
+    form.set('pixels', new Blob([Uint8Array.of(10, 20, 30, 40, 50, 60)]), 'photo.rgb');
+    return handle(new Request(host + '/api/pilot/upload', {
+      method: 'POST', headers: { Authorization: 'Bearer demo.token.value', Origin: host }, body: form,
+    }));
+  };
+  assert.equal((await upload('17')).status, 400);
+  assert.equal(photo, undefined);
+  const response = await upload('7.2');
+  assert.equal(response.status, 201);
+  const report = await response.json();
+  assert.equal(report.id, 'stored-report');
+  assert.equal(report.zone_id, zoneId);
+  assert.equal(report.ph, 7.2);
+  assert.equal(report.temperature_c, 25.5);
+  assert.equal(photo.subarray(1, 4).toString(), 'PNG');
+});
+
+test('pilot recovery requests return a generic response and password updates require auth', async () => {
+  const handle = createPilotHandler({ ...settings, async request(url, options) {
+    if (url.pathname.endsWith('/recover')) {
+      assert.equal(url.searchParams.get('redirect_to'), host + '/pilot.html');
+      assert.equal(options.headers.Authorization, undefined);
+      assert.deepEqual(JSON.parse(options.body), { email: 'citizen@example.invalid' });
+      return Response.json({});
+    }
+    assert.equal(url.pathname, '/auth/v1/user');
+    assert.equal(options.method, 'PUT');
+    assert.equal(options.headers.Authorization, 'Bearer demo.token.value');
+    assert.deepEqual(JSON.parse(options.body), { password: 'synthetic-long-password' });
+    return Response.json({});
+  } });
+  const request = (route, body, token) => new Request(host + '/api/pilot/' + route, {
+    method: 'POST', headers: { Origin: host, ...(token ? { Authorization: token } : {}) }, body: JSON.stringify(body),
+  });
+  const recovery = await handle(request('recover', { email: 'citizen@example.invalid' }));
+  assert.equal(recovery.status, 200);
+  assert.match((await recovery.json()).message, /If this address has an account/);
+  assert.equal((await handle(request('recover', { email: 'invalid' }))).status, 400);
+  const password = { password: 'synthetic-long-password' };
+  assert.equal((await handle(request('password', password))).status, 401);
+  assert.equal((await handle(request('password', password, 'Bearer demo.token.value'))).status, 200);
+});
+
+test('pilot paginates the review queue and checks lake operator access for pending reports', async () => {
+  const lake = 'a1020000-0000-4000-8000-000000000002';
+  let canReview = false;
+  const handle = createPilotHandler({ ...settings, async request(url) {
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: 'operator' });
+    if (url.pathname === '/rest/v1/pilot_memberships') {
+      assert.equal(url.searchParams.get('lake_id'), 'eq.' + lake);
+      return Response.json(canReview ? [{ role: 'operator' }] : []);
+    }
+    assert.equal(url.pathname, '/rest/v1/pilot_reports');
+    assert.equal(url.searchParams.get('offset'), '25');
+    assert.equal(url.searchParams.get('limit'), '26');
+    assert.equal(url.searchParams.get('reviewed.action'), 'neq.model');
+    assert.equal(url.searchParams.get('reviewed'), 'is.null');
+    return Response.json(Array.from({ length: 26 }, (_, id) => ({ id })));
+  } });
+  const page = () => handle(new Request(host + '/api/pilot/reports?lakeId=' + lake + '&page=1&review=pending', {
+    headers: { Authorization: 'Bearer demo.token.value' },
+  }));
+  assert.equal((await page()).status, 403);
+  canReview = true;
+  const result = await page();
+  assert.equal(result.status, 200);
+  const data = await result.json();
+  assert.equal(data.reports.length, 25);
+  assert.equal(data.hasMore, true);
 });

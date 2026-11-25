@@ -1,4 +1,5 @@
 import { normalize } from './photo-input.js';
+import { drawMap } from './lake-map.js';
 
 const $ = id => document.getElementById(id);
 const notice = $('pilot-status');
@@ -13,6 +14,8 @@ const labels = { foam: 'Foam', algae_like_growth: 'Algae-like growth', dumping: 
 let session;
 try { session = JSON.parse(sessionStorage.getItem(store)); } catch { /* A fresh sign-in is required. */ }
 let user, lakes = [], lake, role, listVersion = 0, refreshInFlight, visionConfigured;
+let reportPage = 0;
+let recoveryToken;
 let photoId = crypto.randomUUID(), concernId = crypto.randomUUID();
 const previews = new Set();
 
@@ -83,21 +86,203 @@ function events(report) {
 function latestReview(report) {
   return events(report).find(item => item.action !== 'model');
 }
-function renderCorroboration(reports, selected) {
-  const groups = new Map();
-  for (const report of reports) {
-    const review = latestReview(report);
-    const age = Date.now() - Date.parse(report.observed_at);
-    if (!review?.category || age > 48 * 3600000 || age < 0) continue;
-    const key = report.zone_id + ':' + review.category;
-    if (!groups.has(key)) groups.set(key, { zone: report.zone_id, category: review.category, independent: new Set() });
-    groups.get(key).independent.add(report.reporter_id);
-  }
-  $('pilot-corroboration').textContent = [...groups.values()].filter(group => group.independent.size >= 2)
-    .map(group => zoneName(group.zone, selected) + ' · ' + labels[group.category] + ' · ' + group.independent.size + ' independent reporters')
-    .join(' | ');
+const hotspotStatus = { none: 'No reviewed evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
+const hotspotMap = $('pilot-hotspot-map');
+const hotspotTiles = $('pilot-hotspot-tiles');
+const hotspotMarkers = $('pilot-hotspot-markers');
+let hotspotPoints = [];
+let activeHotspotZone;
+const complaintDialog = $('pilot-complaint');
+let currentComplaint;
+
+new ResizeObserver(() => drawMap(hotspotMap, hotspotTiles, hotspotPoints, hotspotMarkers, 17, 50)).observe(hotspotMap);
+
+function viewPhoto(id, title, version) {
+  const button = el('button', 'View photo');
+  button.type = 'button';
+  button.className = 'secondary';
+  button.setAttribute('aria-label', 'View photo for report ' + id);
+  button.addEventListener('click', () => operate(button, async () => {
+    const blob = await api('photo?id=' + encodeURIComponent(id), undefined, true);
+    if (version !== listVersion || !button.isConnected) return;
+    const image = el('img');
+    image.alt = title;
+    image.src = URL.createObjectURL(blob);
+    previews.add(image.src);
+    button.replaceWith(image);
+  }));
+  return button;
 }
-function reviewForm(report, candidates, version) {
+
+function readingText(ph, temperature) {
+  return [ph != null ? 'pH ' + ph : '', temperature != null ? temperature + ' °C' : ''].filter(Boolean).join(' · ');
+}
+
+function complaintButton(lakeId, zoneId, category, version) {
+  const button = el('button', 'Generate complaint draft');
+  button.type = 'button';
+  button.className = 'secondary';
+  button.addEventListener('click', () => operate(button, async () => {
+    const draft = await api('complaint', { lakeId, zoneId, category });
+    if (version !== listVersion || !button.isConnected) return;
+    currentComplaint = draft;
+    $('pilot-export-status').textContent = '';
+    $('pilot-complaint-recipient').value = draft.recipient;
+    $('pilot-complaint-text').value = draft.draftText;
+    $('pilot-complaint-routing').textContent = draft.localContact
+      ? 'The council is a local contact. Confirm jurisdiction before filing.'
+      : 'Confirm the responsible civic body and enter it before downloading.';
+    const links = $('pilot-complaint-links');
+    links.replaceChildren();
+    for (const contact of [draft.localContact, draft.filing].filter(Boolean)) {
+      const link = el('a', contact.name);
+      link.href = contact.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      links.append(link);
+    }
+    if (!complaintDialog.open) complaintDialog.showModal();
+  }));
+  return button;
+}
+
+$('pilot-complaint-close').addEventListener('click', () => complaintDialog.close());
+$('pilot-complaint-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!currentComplaint) return;
+  const recipient = $('pilot-complaint-recipient').value.trim();
+  const body = $('pilot-complaint-text').value.trim();
+  if (!recipient || !body) {
+    const field = recipient ? $('pilot-complaint-text') : $('pilot-complaint-recipient');
+    field.value = '';
+    field.reportValidity();
+    return;
+  }
+  const text = ['DRAFT — review before filing.', 'To: ' + recipient, '', body, '', 'Evidence references',
+    ...currentComplaint.evidence.map(report => report.id + ' — ' + report.observedAt),
+  ].join('\n');
+  downloadFile(new Blob([text], { type: 'text/plain;charset=utf-8' }), 'jalnetra-complaint-draft.txt');
+});
+
+function downloadFile(blob, name) {
+  const href = URL.createObjectURL(blob);
+  const link = el('a');
+  link.href = href;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(href), 1000);
+}
+
+$('pilot-export-evidence').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  const form = $('pilot-complaint-form');
+  const feedback = $('pilot-export-status');
+  const draft = currentComplaint;
+  if (!draft || button.disabled || !form.reportValidity()) return;
+  const recipient = $('pilot-complaint-recipient').value.trim();
+  const text = $('pilot-complaint-text').value.trim();
+  if (!recipient || !text) {
+    feedback.textContent = 'Enter a recipient and draft text.';
+    return;
+  }
+  button.disabled = true;
+  feedback.textContent = 'Preparing evidence photos.';
+  try {
+    const file = document.implementation.createHTMLDocument('JalNetra complaint evidence');
+    file.body.append(el('h1', 'JalNetra complaint evidence'),
+      el('p', 'Draft for review'), el('p', 'To: ' + recipient), el('pre', text));
+    for (const report of draft.evidence) {
+      const photo = await api('photo?id=' + encodeURIComponent(report.id), undefined, true);
+      if (draft !== currentComplaint || !complaintDialog.open) return;
+      if (photo.type !== 'image/png') throw new Error('An evidence photo is unavailable.');
+      const url = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(photo);
+      });
+      if (draft !== currentComplaint || !complaintDialog.open) return;
+      const figure = el('figure');
+      const image = el('img');
+      image.src = url;
+      image.width = 640;
+      image.alt = 'Shoreline evidence from report ' + report.id;
+      const caption = report.id + ' · ' + time.format(new Date(report.observedAt)) + ' IST';
+      const readings = readingText(report.ph, report.temperatureC);
+      figure.append(image, el('figcaption', caption + (readings ? ' · Citizen-reported ' + readings : '')));
+      file.body.append(figure);
+    }
+    downloadFile(new Blob(['<!doctype html>\n', file.documentElement.outerHTML],
+      { type: 'text/html;charset=utf-8' }), 'jalnetra-complaint-with-photos.html');
+    feedback.textContent = 'Draft with evidence photos downloaded.';
+  } catch {
+    if (draft === currentComplaint) feedback.textContent = 'The photo export could not be created. Retry or download the text draft.';
+  } finally {
+    button.disabled = false;
+  }
+});
+
+function renderHotspots(selected, groups, version) {
+  const list = $('pilot-hotspot-zones');
+  const panel = $('pilot-hotspot-evidence');
+  const zones = selected.pilot_zones;
+  hotspotPoints = zones.filter(zone => Number.isFinite(zone.latitude) && Number.isFinite(zone.longitude));
+  hotspotMap.hidden = !hotspotPoints.length;
+  list.replaceChildren();
+  hotspotMarkers.replaceChildren();
+  if (!zones.some(zone => zone.id === activeHotspotZone)) {
+    activeHotspotZone = groups[0]?.zoneId ?? zones[0]?.id;
+  }
+  function showZone(zone) {
+    activeHotspotZone = zone.id;
+    for (const button of [...list.children, ...hotspotMarkers.children]) {
+      button.setAttribute('aria-pressed', String(button.dataset.mapId === zone.id));
+    }
+    panel.replaceChildren(el('h3', zone.name));
+    const categories = groups.filter(group => group.zoneId === zone.id);
+    if (!categories.length) panel.append(el('p', hotspotStatus.none));
+    for (const group of categories) {
+      const section = el('section');
+      section.append(el('h4', labels[group.category] + ' · ' + hotspotStatus[group.status]),
+        el('p', group.evidence.length + (group.evidence.length === 1 ? ' independent reporter' : ' independent reporters')));
+      const evidence = el('ul');
+      evidence.className = 'pilot-records';
+      for (const report of group.evidence) {
+        const row = el('li');
+        row.append(el('p', time.format(new Date(report.observedAt)) + ' IST'), el('small', 'JalNetra reference ' + report.id));
+        const readings = readingText(report.ph, report.temperatureC);
+        if (readings) row.append(el('p', 'Citizen-reported · ' + readings));
+        row.append(viewPhoto(report.id, 'Citizen photo from ' + zone.name, version));
+        evidence.append(row);
+      }
+      section.append(evidence);
+      if (group.status === 'priority_hotspot') section.append(complaintButton(selected.id, zone.id, group.category, version));
+      panel.append(section);
+    }
+  }
+  for (const zone of zones) {
+    const matching = groups.filter(group => group.zoneId === zone.id);
+    const status = matching.find(group => group.status === 'priority_hotspot')?.status ?? matching[0]?.status ?? 'none';
+    const label = zone.name + ' · ' + hotspotStatus[status];
+    const addButton = (parent, text, className) => {
+      const button = el('button', text);
+      button.type = 'button';
+      button.className = className;
+      button.dataset.status = status;
+      button.dataset.mapId = zone.id;
+      button.setAttribute('aria-label', label);
+      button.addEventListener('click', () => showZone(zone));
+      parent.append(button);
+    };
+    addButton(list, label, 'secondary');
+    if (hotspotPoints.includes(zone)) addButton(hotspotMarkers, zone.name.split(' ')[0], 'marker');
+  }
+  const active = zones.find(zone => zone.id === activeHotspotZone);
+  if (active) showZone(active);
+  else panel.replaceChildren(el('p', 'This lake has no reporting sectors.'));
+  drawMap(hotspotMap, hotspotTiles, hotspotPoints, hotspotMarkers, 17, 50);
+}
+function reviewForm(report, candidates, version, suggestedCategory) {
   const block = el('form');
   const decision = el('select');
   decision.setAttribute('aria-label', 'Decision for ' + report.id);
@@ -106,7 +291,9 @@ function reviewForm(report, candidates, version) {
   }
   const category = el('select');
   category.setAttribute('aria-label', 'Evidence category');
+  category.add(new Option('Choose a visible category', ''));
   for (const value of ['foam', 'algae_like_growth', 'dumping']) category.add(new Option(labels[value], value));
+  if (suggestedCategory) category.value = suggestedCategory;
   const duplicate = el('select');
   duplicate.setAttribute('aria-label', 'Original report');
   duplicate.add(new Option('Choose the original report', ''));
@@ -119,6 +306,7 @@ function reviewForm(report, candidates, version) {
     duplicate.hidden = decision.value !== 'duplicate';
     duplicate.required = !duplicate.hidden;
     category.hidden = ['dismiss', 'duplicate'].includes(decision.value);
+    category.required = !category.hidden;
   }
   decision.addEventListener('change', fields);
   fields();
@@ -140,20 +328,12 @@ function reportCard(report, reports, selected, canReview, version) {
   const model = events(report).find(item => item.action === 'model')?.model_output;
   card.append(el('h3', zoneName(report.zone_id, selected) + ' · ' + time.format(new Date(report.observed_at)) + ' IST'),
     el('p', review ? labels[review.action] + (review.category ? ' · ' + labels[review.category] : '') : 'Awaiting human review'));
+  card.append(el('small', 'JalNetra reference ' + report.id));
   if (report.note) card.append(el('p', report.note));
-  const readings = [report.ph != null ? 'pH ' + report.ph : '', report.temperature_c != null ? report.temperature_c + ' °C' : ''].filter(Boolean);
-  if (readings.length) card.append(el('p', 'Citizen-reported · ' + readings.join(' · ')));
+  const readings = readingText(report.ph, report.temperature_c);
+  if (readings) card.append(el('p', 'Citizen-reported · ' + readings));
   if (review?.note) card.append(el('p', review.note));
-  const media = el('button', 'View photo'); media.type = 'button'; media.className = 'secondary';
-  media.addEventListener('click', () => operate(media, async () => {
-    const blob = await api('photo?id=' + encodeURIComponent(report.id), undefined, true);
-    if (version !== listVersion) return;
-    const image = el('img');
-    image.alt = 'Citizen photo from ' + zoneName(report.zone_id, selected);
-    image.src = URL.createObjectURL(blob); previews.add(image.src);
-    media.replaceWith(image);
-  }));
-  card.append(media);
+  card.append(viewPhoto(report.id, 'Citizen photo from ' + zoneName(report.zone_id, selected), version));
   if (model) {
     const cues = model.detections?.map(item => labels[item.category] + ' — ' + item.cue);
     card.append(el('p', 'Live vision · ' + (model.imageQuality === 'unclear' ? 'Image unclear' : cues?.join('; ') || 'No visible target signs')));
@@ -174,7 +354,9 @@ function reportCard(report, reports, selected, canReview, version) {
   }).sort((a, b) => a.distance - b.distance);
   if (candidates.some(other => other.distance <= 6)) card.append(el('p', 'Possible near-duplicate. Compare the photos before deciding.'));
   const details = el('details');
-  details.append(el('summary', 'Review evidence'), reviewForm(report, candidates, version));
+  const detections = model?.detections ?? [];
+  const suggestedCategory = review?.category ?? (detections.length === 1 ? detections[0].category : null);
+  details.append(el('summary', 'Review evidence'), reviewForm(report, candidates, version, suggestedCategory));
   if (review) {
     const history = el('details');
     history.append(el('summary', 'Review history'));
@@ -188,9 +370,14 @@ function reportCard(report, reports, selected, canReview, version) {
 }
 async function loadRecords() {
   const version = ++listVersion, selected = lake;
+  currentComplaint = undefined;
+  if (complaintDialog.open) complaintDialog.close();
   for (const url of previews) URL.revokeObjectURL(url);
   previews.clear();
-  $('pilot-corroboration').textContent = '';
+  $('pilot-hotspots').hidden = true;
+  hotspotMap.hidden = true;
+  $('pilot-hotspot-zones').replaceChildren();
+  $('pilot-hotspot-evidence').replaceChildren();
   const reports = $('pilot-reports'), concerns = $('pilot-concerns');
   if (!selected || !role) {
     reports.replaceChildren(el('li', 'Join this lake to view your submissions.'));
@@ -198,19 +385,37 @@ async function loadRecords() {
     return;
   }
   const canReview = ['operator', 'admin'].includes(role);
+  $('pilot-prev').disabled = true;
+  $('pilot-next').disabled = true;
   reports.replaceChildren(el('li', 'Loading observations…'));
   concerns.replaceChildren(el('li', 'Loading concerns…'));
   const scope = '?lakeId=' + selected.id;
-  const [photoData, concernData] = await Promise.all([api('reports' + scope), api('concerns' + scope)]);
+  const hotspotTask = canReview ? api('hotspots' + scope).then(({ groups }) => {
+    if (version !== listVersion) return;
+    $('pilot-hotspots').hidden = false;
+    renderHotspots(selected, groups, version);
+  }).catch(error => {
+    if (version !== listVersion) return;
+    $('pilot-hotspots').hidden = false;
+    $('pilot-hotspot-evidence').textContent = error.message;
+  }) : undefined;
+  const state = $('pilot-review-state').value;
+  const results = await Promise.allSettled([
+    api('reports' + scope + '&page=' + reportPage + (canReview && state ? '&review=' + state : '')),
+    api('concerns' + scope),
+  ]);
+  const [photoData, concernData] = results.map(item => item.status === 'fulfilled' ? item.value : null);
   if (version !== listVersion) return;
-  reports.replaceChildren(...(photoData.reports.length ? photoData.reports.map(report => reportCard(report, photoData.reports, selected, canReview, version)) : [el('li', 'No observations yet.')]));
-  concerns.replaceChildren(...(concernData.concerns.length ? concernData.concerns.map(concern => {
+  $('pilot-prev').disabled = reportPage === 0;
+  $('pilot-next').disabled = !photoData?.hasMore;
+  reports.replaceChildren(...(photoData?.reports.length ? photoData.reports.map(report => reportCard(report, photoData.reports, selected, canReview, version)) : [el('li', photoData ? 'No observations on this page.' : 'Reports could not load. Click Refresh to retry.')]));
+  concerns.replaceChildren(...(concernData?.concerns.length ? concernData.concerns.map(concern => {
     const row = el('li');
     row.append(el('h3', labels[concern.category] + ' · ' + zoneName(concern.zone_id, selected)),
       el('p', concern.description), el('small', 'JalNetra reference ' + concern.id));
     return row;
-  }) : [el('li', 'No concerns yet.')]));
-  if (canReview) renderCorroboration(photoData.reports, selected);
+  }) : [el('li', concernData ? 'No concerns yet.' : 'Concerns could not load. Click Refresh to retry.')]));
+  await hotspotTask;
 }
 function setObserved() {
   const now = new Date();
@@ -219,16 +424,27 @@ function setObserved() {
 async function chooseLake() {
   lake = lakes.find(item => item.id === lakeSelect.value);
   role = user?.memberships.find(item => item.lake_id === lake?.id)?.role;
+  const url = new URL(location.href);
+  if (lake?.slug) url.searchParams.set('lake', lake.slug);
+  else url.searchParams.delete('lake');
+  if (url.href !== location.href) history.replaceState(null, '', url);
+  $('pilot-map-link').href = lake?.slug ? '/?lake=' + encodeURIComponent(lake.slug) : '/';
   $('pilot-enroll').hidden = !lake || !!role;
   $('pilot-intake').hidden = role !== 'citizen';
   $('pilot-admin').hidden = role !== 'admin';
   $('pilot-role').textContent = (role ? 'Lake role · ' + role : 'Select a lake to join and report.') + ' · Account ID ' + user.id;
   $('pilot-report-scope').textContent = ['operator', 'admin'].includes(role) ?
-    (visionConfigured ? 'Shared review queue · latest 25 reports' : 'Shared review queue · human review available') : 'Your latest submissions';
+    (visionConfigured ? 'Shared review queue' : 'Shared review queue · human review available') : 'Your latest submissions';
   for (const id of ['pilot-zone', 'pilot-concern-zone']) {
     $(id).replaceChildren(...(lake?.pilot_zones ?? []).map(zone => new Option(zone.name, zone.id)));
   }
   photoForm.reset(); concernForm.reset(); setObserved();
+  reportPage = 0;
+  $('pilot-review-state').value = '';
+  $('pilot-review-filter').hidden = !['operator', 'admin'].includes(role);
+  const sector = new URLSearchParams(location.search).get('sector');
+  const matched = lake?.pilot_zones.find(item => item.slug === sector);
+  if (matched) for (const id of ['pilot-zone', 'pilot-concern-zone']) $(id).value = matched.id;
   photoId = crypto.randomUUID(); concernId = crypto.randomUUID();
   await Promise.all([loadRecords(), role === 'admin' ? loadMembers(lake) : undefined]);
 }
@@ -239,11 +455,25 @@ async function loadMembers(selected) {
 }
 async function openWorkspace() {
   const [account, catalog, status] = await Promise.all([api('account'), api('catalog'), api('status')]);
-  user = account; lakes = catalog.lakes; visionConfigured = status.visionConfigured;
+  const params = new URLSearchParams(location.search);
+  const entry = params.get('role');
+  const reviewLakeIds = new Set(account.memberships.filter(item =>
+    item.role === 'operator' || item.role === 'admin').map(item => item.lake_id));
+  const allowedLakes = catalog.lakes.filter(item => entry === 'operator' ? reviewLakeIds.has(item.id) :
+    entry === 'citizen' ? !reviewLakeIds.has(item.id) : true);
+  if (!allowedLakes.length && entry === 'operator') {
+    setSession(null);
+    throw new Error('This account has no assigned operator role. Use Citizen sign in or contact a lake administrator.');
+  }
+  if (!allowedLakes.length && entry === 'citizen' && reviewLakeIds.size) {
+    setSession(null);
+    throw new Error('This account has lake review access. Use Operator sign in.');
+  }
+  user = account; lakes = allowedLakes; visionConfigured = status.visionConfigured;
   $('pilot-auth').hidden = true;
   $('pilot-workspace').hidden = false;
   $('pilot-account').textContent = user.email;
-  const requested = new URLSearchParams(location.search).get('lake');
+  const requested = params.get('lake');
   lakeSelect.replaceChildren(...lakes.map(item => new Option(item.name, item.id)));
   const initial = lakes.find(item => item.slug === requested) ??
     lakes.find(item => user.memberships.some(m => m.lake_id === item.id));
@@ -251,7 +481,7 @@ async function openWorkspace() {
   await chooseLake();
 }
 
-$('pilot-login').addEventListener('submit', event => {
+function submitLogin(event) {
   event.preventDefault();
   const button = event.submitter;
   if (!button) return;
@@ -260,10 +490,15 @@ $('pilot-login').addEventListener('submit', event => {
     const auth = await decode(await http(button.value, payload));
     event.target.reset();
     if (button.value === 'signup') return msg(auth.message);
+    const url = new URL(location.href);
+    url.searchParams.set('role', event.target.id === 'pilot-operator-login' ? 'operator' : 'citizen');
+    history.replaceState(null, '', url);
     setSession(auth);
     await openWorkspace();
   });
-});
+}
+$('pilot-login').addEventListener('submit', submitLogin);
+$('pilot-operator-login').addEventListener('submit', submitLogin);
 $('pilot-signout').addEventListener('click', () => operate($('pilot-signout'), async () => {
   try { await api('signout', {}); } finally {
     setSession(null); user = null; lake = null; role = null;
@@ -279,6 +514,16 @@ $('pilot-enroll').addEventListener('click', () => operate($('pilot-enroll'), asy
 }));
 lakeSelect.addEventListener('change', () => chooseLake().catch(error => msg(error.message, true)));
 $('pilot-reload').addEventListener('click', () => operate($('pilot-reload'), loadRecords));
+$('pilot-review-state').addEventListener('change', () => {
+  reportPage = 0;
+  return loadRecords();
+});
+for (const [id, delta] of [['pilot-prev', -1], ['pilot-next', 1]]) {
+  $(id).addEventListener('click', () => {
+    reportPage = Math.max(0, reportPage + delta);
+    return loadRecords();
+  });
+}
 $('pilot-members').addEventListener('submit', event => {
   event.preventDefault();
   operate(event.submitter, async () => {
@@ -323,10 +568,37 @@ concernForm.addEventListener('submit', event => {
   });
 });
 
+for (const button of document.querySelectorAll('[data-reset-password]')) {
+  button.addEventListener('click', () => {
+    const email = button.form.elements.namedItem('email');
+    if (email.reportValidity()) operate(button, async () => {
+      const response = await decode(await http('recover', { email: email.value.trim() }));
+      msg(response.message);
+    });
+  });
+}
+$('pilot-reset-form').addEventListener('submit', event => {
+  event.preventDefault();
+  if (!recoveryToken || !event.submitter) return;
+  operate(event.submitter, async () => {
+    await decode(await http('password', { password: $('pilot-new-password').value }, recoveryToken));
+    recoveryToken = undefined;
+    event.target.reset();
+    $('pilot-reset').hidden = true;
+    $('pilot-auth').hidden = false;
+    msg('Password updated. Sign in with your new password.');
+  });
+});
+
 const authFragment = new URLSearchParams(location.hash.slice(1));
 if (authFragment.has('access_token') || authFragment.has('error_description')) {
   history.replaceState(null, '', location.pathname + location.search);
-  if (authFragment.has('access_token')) msg('Email confirmed. Sign in to continue.');
+  if (authFragment.get('type') === 'recovery' && authFragment.has('access_token')) {
+    setSession(null);
+    recoveryToken = authFragment.get('access_token');
+    $('pilot-auth').hidden = true;
+    $('pilot-reset').hidden = false;
+  } else if (authFragment.has('access_token')) msg('Email confirmed. Sign in to continue.');
   else msg('The confirmation link could not be used. Request a new account email or sign in if already confirmed.', true);
 }
 if (session) openWorkspace().catch(error => { setSession(null); msg(error.message, true); });

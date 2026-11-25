@@ -1,5 +1,5 @@
 import { normalize } from './photo-input.js';
-import { interactiveMap, nearestZone, placeMarkers, renderViewport, sectorAt } from './lake-map.js';
+import { interactiveMap, nearestZone, placeMarkers, renderViewport, sectorAt } from './lake-map.js?v=shared-reporting';
 import { readingText, renderReadings } from './readings.js';
 
 const form = document.querySelector('#report-form');
@@ -18,6 +18,8 @@ let dashboard;
 let zonesLoaded = false;
 let lakes = [];
 let currentLake;
+let hostedReporting = true;
+let hostedDemo = false;
 let readingRequest = 0;
 const lakeSelect = document.querySelector('#lake-select');
 const readingZone = document.querySelector('#reading-zone');
@@ -105,8 +107,11 @@ function highlightZone() {
     const hotspot = dashboard?.zones.find(item => item.zoneId === marker.dataset.zoneId);
     marker.dataset.status = hotspot?.status ?? 'none';
     const status = marker.querySelector('.sector-status');
-    if (status) status.textContent = dashboard ? hotspotLabels[marker.dataset.status] : 'Evidence status unavailable';
-    else marker.setAttribute('aria-label', marker.textContent + ' - ' + hotspotLabels[marker.dataset.status]);
+    if (status) {
+      status.hidden = hostedReporting;
+      status.textContent = dashboard ? hotspotLabels[marker.dataset.status] : 'Evidence status unavailable';
+    }
+    else marker.setAttribute('aria-label', hostedReporting ? marker.textContent : marker.textContent + ' - ' + hotspotLabels[marker.dataset.status]);
   }
   renderEvidence();
   const selected = currentLake?.zones.find(item => item.id === zone.value);
@@ -268,6 +273,7 @@ async function loadReadings() {
 }
 
 function refreshDashboard() {
+  if (hostedReporting) return Promise.resolve();
   return Promise.all([loadHistory(), loadHotspots(), loadReadings()]);
 }
 
@@ -335,6 +341,11 @@ function updateLakeProfile() {
     (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent observations') +
     (watch ? ' · ' + watch + ' sectors with active evidence' : '');
   document.querySelector('#lake-reference').href = currentLake.reference;
+  const reportLink = document.querySelector('#profile-report');
+  const target = new URL('/pilot.html?role=citizen', location.origin);
+  target.searchParams.set('lake', currentLake.id);
+  if (zone.value) target.searchParams.set('sector', zone.value);
+  reportLink.href = target;
 }
 
 function filterLakeList() {
@@ -385,7 +396,7 @@ const cityController = interactiveMap(cityMap, renderCity, (viewport, x, y) => {
   if (currentLake?.kind !== 'geographic' || viewport.zoom < 13) return;
   const sector = sectorAt(currentLake, viewport, x, y);
   if (sector) selectShoreline(sector.id);
-});
+}, () => cityGrid.classList.contains('is-expanded'));
 
 function resetCity() {
   if (lakeSelect.disabled) return;
@@ -404,10 +415,8 @@ function setExpanded(expanded) {
   cityGrid.classList.toggle('is-expanded', expanded);
   const button = document.querySelector('#map-expand');
   const label = expanded ? 'Minimize map' : 'Expand map';
-  button.setAttribute('aria-pressed', String(expanded));
-  button.setAttribute('aria-label', label);
-  button.title = label;
-  button.textContent = expanded ? '⤡' : '⤢';
+  button.setAttribute('aria-expanded', String(expanded));
+  button.textContent = label;
 }
 
 lakeSearch.addEventListener('input', filterLakeList);
@@ -496,17 +505,16 @@ function setLake(id) {
   const selected = lakes.find(item => item.id === id);
   if (!selected) return;
   const geographic = selected.kind === 'geographic';
+  if (hostedDemo && geographic) return;
   if (currentLake === selected) {
     if (geographic) {
-      setExpanded(true);
       cityController.fit(selected.zones, true);
     }
     return;
   }
   currentLake = selected;
-  setExpanded(geographic);
-  demoWorkspace.hidden = geographic;
-  cityEvidence.hidden = !geographic;
+  demoWorkspace.hidden = hostedReporting || geographic;
+  cityEvidence.hidden = hostedReporting || !geographic;
   if (geographic) {
     cityMap.append(markers);
     document.querySelector('#city-report').append(observationCard);
@@ -584,6 +592,9 @@ function setLake(id) {
   if (geographic) url.searchParams.set('lake', id);
   else url.searchParams.delete('lake');
   window.history.replaceState(null, '', url);
+  const lakeParam = geographic ? '&lake=' + encodeURIComponent(id) : '';
+  document.querySelector('#shared-reporting').href = '/pilot.html?role=citizen' + lakeParam;
+  document.querySelector('#operator-reporting').href = '/pilot.html?role=operator' + lakeParam + '#pilot-operator';
   zonesLoaded = true;
   highlightZone();
   if (geographic) cityController.fit(selected.zones, true);
@@ -596,7 +607,7 @@ async function loadLakes() {
   lakes = await getJson('/api/lakes');
   buildCityExplorer();
   for (const item of lakes) lakeSelect.add(new Option(item.name, item.id));
-  const requested = new URLSearchParams(window.location.search).get('lake');
+  const requested = hostedDemo ? 'demo-lake' : new URLSearchParams(window.location.search).get('lake');
   return setLake(lakes.some(item => item.id === requested) ? requested : 'demo-lake');
 }
 
@@ -753,7 +764,25 @@ async function loadMode() {
     mode.hosted ? ' Hosted demo' : mode.mode === 'live' ? ' Live vision' : mode.rehearsal ? ' Demo rehearsal' : ' Offline demo';
   if (mode.hosted) document.querySelector('#rehearsal-status').textContent =
     'Use the illustrated samples. Your browser has a separate demo session which expires after seven days.';
-  document.querySelector('#rehearsal-tools').hidden = !mode.rehearsal;
+  hostedDemo = mode.hosted && new URLSearchParams(location.search).get('demo') === '1';
+  hostedReporting = mode.hosted && !hostedDemo;
+  document.querySelector('#app-mode').lastChild.textContent = hostedReporting ? ' Shared reporting' :
+    hostedDemo ? ' Simulated demo' : document.querySelector('#app-mode').lastChild.textContent;
+  if (hostedDemo) {
+    document.querySelector('#title').textContent = 'Try the JalNetra demo';
+    document.querySelector('#intro-description').textContent = 'Use sample photos to test how simulated observations become hotspots and complaint drafts.';
+  }
+  document.querySelector('#try-demo').hidden = !hostedReporting;
+  document.querySelector('#leave-demo').hidden = !hostedDemo;
+  document.querySelector('#city-explorer').hidden = hostedDemo;
+  document.querySelector('#profile-report').hidden = !hostedReporting;
+  document.querySelector('#show-photo').hidden = hostedReporting;
+  concernBox.hidden = hostedReporting;
+  observationCard.hidden = hostedReporting;
+  for (const id of ['readings-title', 'history-title']) {
+    document.getElementById(id).closest('section').hidden = hostedReporting;
+  }
+  document.querySelector('#rehearsal-tools').hidden = !mode.rehearsal || hostedReporting;
   samples = mode.samples;
   sampleControl.hidden = samples.length === 0;
   for (const sample of samples) sampleSelect.add(new Option(sample.title, sample.id));

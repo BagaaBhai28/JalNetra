@@ -31,10 +31,11 @@ p { margin: 0; }
 .tag { background: #ebf2e5; border-radius: 20px; padding: 5px 9px; font-size: .72rem; font-weight: 650; }
 .city-explorer { margin-bottom: 15px; }
 .city-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(245px, 1fr); }
-.city-grid:not(.has-lake) { grid-template-columns: minmax(0, 1fr); }
-.city-grid:not(.has-lake) .city-sidebar { border-left: 0; border-top: 1px solid var(--line); }
 .city-map-frame { position: relative; min-width: 0; height: clamp(300px, 40vw, 420px); }
+.city-explorer #map-expand { flex: none; min-height: 36px; margin: 0; padding-inline: 10px; }
+.city-grid:not(.is-expanded) .city-sidebar { overflow: auto; max-height: clamp(300px, 40vw, 420px); }
 .map.city-map { width: 100%; height: 100%; aspect-ratio: auto; cursor: grab; touch-action: none; user-select: none; }
+.city-grid:not(.is-expanded) .city-map { touch-action: pan-y; }
 .city-map.is-dragging { cursor: grabbing; }
 .city-map:focus-visible { outline: 2px solid #174e3f; outline-offset: -2px; }
 .city-grid.is-expanded { grid-template-columns: minmax(0, 1fr) clamp(320px, 34%, 410px); align-items: start; }
@@ -176,9 +177,10 @@ dialog textarea { min-height: 170px; }
   .city-grid { grid-template-columns: 1fr; }
   .city-sidebar { border-left: 0; border-top: 1px solid var(--line); }
   .city-map-frame { height: 300px; }
+  .city-grid:not(.is-expanded) .city-sidebar { max-height: none; }
   .lake-choices { max-height: 119px; }
   .city-grid.is-expanded { grid-template-columns: minmax(0, 1fr); }
-  .city-grid.is-expanded .city-map-frame { height: clamp(290px, 56dvh, 540px); }
+  .city-grid.is-expanded .city-map-frame { height: clamp(350px, 65dvh, 580px); }
   .city-grid.is-expanded .city-sidebar, .city-sidebar:has(:where(#lake-profile:not([hidden]))) { max-height: none; padding: 15px 18px; }
   .workspace { grid-template-columns: 1fr; }
   main { width: calc(100% - 24px); }

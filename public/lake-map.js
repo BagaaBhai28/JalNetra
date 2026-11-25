@@ -131,7 +131,7 @@ export function zoomViewport(viewport, zoom, x, y, nextX = x, nextY = y) {
   };
 }
 
-export function interactiveMap(surface, render, pick) {
+export function interactiveMap(surface, render, pick, captureScroll = () => true) {
   const pointers = new Map();
   let viewport;
   let fitted = true;
@@ -225,6 +225,7 @@ export function interactiveMap(surface, render, pick) {
     });
   }
   surface.addEventListener('wheel', event => {
+    if (!captureScroll()) return;
     event.preventDefault();
     if (performance.now() - wheelTime < 115 || !event.deltaY) return;
     wheelTime = performance.now();

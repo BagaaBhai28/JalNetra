@@ -8,7 +8,7 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**[Open the live JalNetra demo](https://jalnetra-wine.vercel.app/)**
+**[Open JalNetra](https://jalnetra-wine.vercel.app/)** · [Try the demo](https://jalnetra-wine.vercel.app/?demo=1)
 
 ## Try the hosted demo
 
@@ -48,19 +48,19 @@ The current production site was deployed directly from this repository's source.
 
 ### Field pilot backend
 
-Use **Sign in for shared lake reporting** for citizen submissions and lake operator review. Supabase stores shared photos, observations and concerns for authorized users across devices. Lake administrators manage operator access. Assigned operators can request live photo analysis, record review decisions, and link possible duplicates. The public rehearsal keeps its own data. Public account confirmation requires custom SMTP.
+Use **Report to lake operator** for citizen submissions or **Operator sign in** to review evidence. Supabase stores shared photos, observations and concerns for authorized users across devices. Lake administrators manage operator access. Assigned operators can request live photo analysis, record review decisions, and link possible duplicates. The operator map groups recent reviewed evidence by shoreline sector and category. Priority groups can generate an editable complaint draft for download. The public rehearsal keeps its own data. Public account confirmation requires custom SMTP.
 
 ### Bengaluru lake maps and water readings
 
-The **Bengaluru lake map** opens with a regional view from Devanahalli and Kempegowda International Airport to Electronic City. It includes 21 named reporting lakes across north, south, east, west, and central Bengaluru. Drag to pan, scroll or pinch to zoom, or use the map buttons to zoom, reset, and expand. With the map focused, arrow keys pan and plus and minus zoom.
+The **Bengaluru lake map** opens with a regional view from Devanahalli and Kempegowda International Airport to Electronic City. It includes 21 named reporting lakes across north, south, east, west, and central Bengaluru. Drag to pan or use the map buttons to zoom, reset, and expand. The expanded map supports scroll and pinch zoom. With the map focused, arrow keys pan and plus and minus zoom.
 
-Choose a pin or use the lake list below the map. The map expands on the homepage and focuses on the selected lake. The lake profile, shoreline evidence status, and photo form appear beside the map. On small screens they sit below it. Select an approximate north, east, south, or west shoreline sector on the map or in the form. Optional readings and notes are saved with the photo. Use **Back to lake search** to return to the regional view.
+Choose a pin or use the lake list below the map. The map opens in its compact layout and focuses on the selected lake. Use **Expand map** to enlarge it. The lake profile and shoreline sectors appear beside the map. **Report to lake operator** opens shared sign-in with the selected lake and sector. On small screens they sit below it. Select an approximate north, east, south, or west shoreline sector on the map or in the form. Optional readings and notes are saved with the photo. Use **Back to lake search** to return to the regional view.
 
 Open **Raise a concern** to record suspected wastewater discharge, waste dumping, sewage overflow, or another shoreline issue. Select a sector and describe what you observed. JalNetra gives the concern a reference number and a downloadable text copy for sharing. The hosted demo saves concerns in the submitting browser's session and does not send them to authorities.
 
 **Suggest zone from GPS** works when the browser can obtain an accurate location near the selected lake. The app saves the selected sector, while GPS coordinates stay in the browser. Manual zone selection is available. The illustrative Demo Lake stays available offline and uses labelled sample images.
 
-**Water readings** shows separately plotted pH and temperature measurements, a zone filter, and a chronological table for up to 100 observations from the last 30 days. Report and hotspot cards show submitted readings and notes. Entries distinguish citizen-reported values from rehearsal examples. The homepage report form saves to the demo session. The signed-in reporting workspace saves shared observations in Supabase.
+**Water readings** shows separately plotted pH and temperature measurements, a zone filter, and a chronological table for up to 100 observations from the last 30 days. Report and hotspot cards show submitted readings and notes. Entries distinguish citizen-reported values from rehearsal examples. The hosted **Try demo** workspace shows simulated observations. The signed-in reporting workspace saves shared observations in Supabase.
 
 ## What the project solves
 

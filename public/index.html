@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#133d38">
   <title>JalNetra · Lake observations</title>
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/app.js"></script>
+  <link rel="stylesheet" href="/style.css?v=shared-reporting">
+  <script type="module" src="/app.js?v=shared-reporting"></script>
 </head>
 <body>
   <header class="top">
@@ -17,11 +17,11 @@
     <section class="intro" aria-labelledby="title">
       <p class="eyebrow">LAKE MONITORING</p>
       <h1 id="title">Report a shoreline observation</h1>
-      <p>Choose a lake and shoreline zone, then add a photo and any readings you collected.</p>
-      <p><a href="/pilot.html">Sign in for shared lake reporting</a></p>
+      <p id="intro-description">Choose a lake and shoreline zone, then sign in to share a photo and any readings with the lake operator.</p>
+      <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen">Report to lake operator</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
     </section>
-    <section class="card city-explorer" aria-labelledby="city-title">
-      <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>From the airport to Electronic City. Drag to explore or zoom in to see more lake names.</p></div></div>
+    <section class="card city-explorer" id="city-explorer" aria-labelledby="city-title">
+      <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Drag to explore or zoom in to see more lake names.</p></div><button id="map-expand" class="secondary" type="button" aria-controls="city-grid" aria-expanded="false">Expand map</button></div>
       <div class="city-grid" id="city-grid">
         <div class="city-map-frame" id="city-map-frame">
           <div class="map city-map" id="city-map" tabindex="0" role="region" aria-label="Interactive Bengaluru map. Arrow keys pan, plus and minus zoom, Home resets.">
@@ -33,7 +33,6 @@
             <button id="map-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
             <button id="map-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
             <button id="map-reset" type="button" aria-label="Show all Bengaluru" title="Show all Bengaluru">&#8962;</button>
-            <button id="map-expand" type="button" aria-label="Expand map" title="Expand map" aria-pressed="false">&#10530;</button>
           </div>
           <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>
         </div>
@@ -55,6 +54,7 @@
             <div id="sector-choices" class="sector-choices" role="group" aria-labelledby="sector-title"></div>
             <div class="profile-links">
               <button id="show-photo" type="button" class="inline-action">Upload a photo</button>
+              <a id="profile-report" href="/pilot.html?role=citizen" hidden>Report to lake operator</a>
               <a id="lake-reference" target="_blank" rel="noopener">Lake reference</a>
               <span id="city-gps"></span>
             </div>
@@ -89,7 +89,7 @@
       <button id="restart-rehearsal" class="secondary" type="button">Start rehearsal</button>
       <p id="rehearsal-status" role="status">Start with one foam observation at North Inlet. Rehearsal data is cleared when the server stops.</p>
     </section>
-    <div class="workspace" id="demo-workspace">
+    <div class="workspace" id="demo-workspace" hidden>
       <section class="card map-card" aria-labelledby="map-title">
         <div class="card-head"><div><h2 id="map-title">Demo Lake</h2><p>Shoreline zone map</p></div><span id="map-kind" class="tag">Illustrative</span></div>
         <div class="map-controls">
@@ -152,7 +152,7 @@
       </section>
     </div>
     <div id="city-evidence" class="card history" hidden></div>
-    <section class="card history" aria-labelledby="readings-title">
+    <section class="card history" aria-labelledby="readings-title" hidden>
       <div class="card-head">
         <div><h2 id="readings-title">Water readings</h2><p>Last 30 days · up to 100 observations · IST</p></div>
         <div class="reading-filter"><label for="reading-zone">Reading zone</label><select id="reading-zone"></select></div>
@@ -188,7 +188,7 @@
         <p id="draft-status" class="feedback" role="status"></p>
       </form>
     </dialog>
-    <section class="card history" aria-labelledby="history-title">
+    <section class="card history" aria-labelledby="history-title" hidden>
       <div class="card-head"><div><h2 id="history-title">Recent observations</h2><p>Times shown in IST</p></div></div>
       <p id="history-status" role="status">Loading observations…</p>
       <ul id="report-list" class="report-list"></ul>
