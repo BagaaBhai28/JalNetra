@@ -81,3 +81,20 @@ test('pilot writes enforce same origin and allow only assigned operators to run 
   assert.equal((await analyze(host)).status, 200);
   assert.equal(providerCalls, 1);
 });
+
+test('pilot enrollment accepts a successful empty response from Supabase', async () => {
+  const userId = 'a1020000-0000-4000-8000-000000000003';
+  const lakeId = 'a1020000-0000-4000-8000-000000000001';
+  const handle = createPilotHandler({ ...settings, async request(url, options) {
+    if (url.pathname === '/auth/v1/user') return Response.json({ id: userId, email_confirmed_at: '2026-11-25' });
+    assert.equal(url.pathname, '/rest/v1/pilot_memberships');
+    assert.deepEqual(JSON.parse(options.body), { user_id: userId, lake_id: lakeId, role: 'citizen' });
+    return new Response(null, { status: 201 });
+  } });
+  const response = await handle(new Request(host + '/api/pilot/enroll', {
+    method: 'POST', headers: { Authorization: 'Bearer demo.token.value', Origin: host },
+    body: JSON.stringify({ lakeId }),
+  }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { enrolled: true });
+});

@@ -91,7 +91,8 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         if (upstream.status < 500) throw new PilotError(400, 'PILOT_REJECTED', 'The service rejected the request. Check the details and your access.');
         throw new Error('Pilot request failed');
       }
-      return upstream.status === 204 ? null : upstream.json();
+      const body = await upstream.text();
+      return body ? JSON.parse(body) : null;
     }
     const rest = (table, params) => '/rest/v1/' + table + '?' + new URLSearchParams(params);
     const send = (path, data, prefer = 'return=representation') => result(path, {
