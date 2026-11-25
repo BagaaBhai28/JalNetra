@@ -192,6 +192,13 @@ dialog textarea { min-height: 170px; }
 }
 
 .pilot-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+.demo-overlay { pointer-events: none; }
+.demo-map-alert { position: absolute; z-index: 4; transform: translate(-50%, -100%); background: #a32131; color: #fff;
+  padding: 6px 10px; border: 2px solid #fff; border-radius: 20px; font-size: .8rem; font-weight: 700; white-space: nowrap;
+  box-shadow: 0 0 0 8px #bf25383a; }
+.demo-map-alert[data-offscreen] { visibility: hidden; }
+#operator-demo-content img { display: block; width: min(100%, 330px); margin: 10px 0; border-radius: 8px; }
+#demo-concern-tools .primary, #operator-demo-content .secondary { margin: 0; }
 .conditions-map { aspect-ratio: auto; height: clamp(255px, 44vw, 450px); }
 .conditions-marker { border-radius: 50%; width: 20px; height: 20px; }
 .conditions-marker[aria-pressed="true"] { outline: 2px solid #183731; outline-offset: 2px; }
