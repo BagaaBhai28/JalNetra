@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#133d38">
-  <title>JalNetra · Lake observations</title>
+  <title>JalNetra � Lake observations</title>
   <link rel="stylesheet" href="/style.css?v=shared-reporting">
-  <script type="module" src="/app.js?v=shared-reporting"></script>
+  <script type="module" src="/app.js?v=citizen-signup"></script>
 </head>
 <body>
   <header class="top">
-    <a class="brand" href="/" aria-label="JalNetra home"><span class="brand-icon" aria-hidden="true">≈</span> JalNetra</a>
+    <a class="brand" href="/" aria-label="JalNetra home"><span class="brand-icon" aria-hidden="true">�</span> JalNetra</a>
     <span id="app-mode" class="scope"><span></span> Local mode</span>
   </header>
   <main>
@@ -18,7 +18,7 @@
       <p class="eyebrow">LAKE MONITORING</p>
       <h1 id="title">Report a shoreline observation</h1>
       <p id="intro-description">Choose a lake and shoreline zone, then sign in to share a photo and any readings with the lake operator.</p>
-      <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen" >Citizen lake map and reporting</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
+      <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen" >Citizen lake map and reporting</a><a id="citizen-signup-link" href="/pilot.html?role=citizen#citizen-signup">Citizen sign up</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
     </section>
     <section class="card city-explorer" id="city-explorer" aria-labelledby="city-title">
       <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Drag to explore or zoom in to see more lake names.</p></div><button id="map-expand" class="secondary" type="button" aria-controls="city-grid" aria-expanded="false">Expand map</button></div>
@@ -109,9 +109,9 @@
             <text x="453" y="245" text-anchor="middle" class="north-label">N</text>
           </svg>
           <div id="map-zones" class="map-zones" aria-label="Select a zone on the map"></div>
-          <a id="map-attribution" class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" hidden>© OpenStreetMap contributors</a>
+          <a id="map-attribution" class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" hidden>c OpenStreetMap contributors</a>
         </div>
-        <p id="map-help" class="map-help">Select a marker to see that zone’s evidence or choose a zone in the form.</p>
+        <p id="map-help" class="map-help">Select a marker to see that zone's evidence or choose a zone in the form.</p>
         <p id="gps-status" class="map-help" role="status" hidden></p>
         <p id="selected-shoreline" class="map-help" hidden><span id="selected-shoreline-label"></span> <a href="#photo">Go to photo upload</a></p>
         <section class="evidence-panel" aria-labelledby="evidence-title">
@@ -141,7 +141,7 @@
             <summary>Optional readings and notes</summary>
             <div class="readings">
               <div><label for="ph">pH</label><input id="ph" name="ph" type="number" min="0" max="14" step="any"></div>
-              <div><label for="temperature">Temperature (°C)</label><input id="temperature" name="temperatureC" type="number" min="-20" max="100" step="any"></div>
+              <div><label for="temperature">Temperature (�C)</label><input id="temperature" name="temperatureC" type="number" min="-20" max="100" step="any"></div>
             </div>
             <label for="note">Notes</label>
             <textarea id="note" name="note" maxlength="500" rows="2"></textarea>
@@ -154,18 +154,18 @@
     <div id="city-evidence" class="card history" hidden></div>
     <section class="card history" aria-labelledby="readings-title" hidden>
       <div class="card-head">
-        <div><h2 id="readings-title">Water readings</h2><p>Last 30 days · up to 100 observations · IST</p></div>
+        <div><h2 id="readings-title">Water readings</h2><p>Last 30 days � up to 100 observations � IST</p></div>
         <div class="reading-filter"><label for="reading-zone">Reading zone</label><select id="reading-zone"></select></div>
       </div>
       <p id="reading-status" class="readings-status" role="status"></p>
       <div class="reading-charts">
         <section aria-labelledby="ph-title"><h3 id="ph-title">pH</h3><canvas id="ph-chart" width="520" height="186" role="img" hidden></canvas><p id="ph-empty">No pH readings in this view.</p></section>
-        <section aria-labelledby="temp-title"><h3 id="temp-title">Temperature (°C)</h3><canvas id="temperature-chart" width="520" height="186" role="img" hidden></canvas><p id="temperature-empty">No temperature readings in this view.</p></section>
+        <section aria-labelledby="temp-title"><h3 id="temp-title">Temperature (�C)</h3><canvas id="temperature-chart" width="520" height="186" role="img" hidden></canvas><p id="temperature-empty">No temperature readings in this view.</p></section>
       </div>
       <div id="readings-table" class="readings-table" hidden>
         <table>
           <caption>Recorded water readings</caption>
-          <thead><tr><th scope="col">Observed (IST)</th><th scope="col">Zone</th><th scope="col">pH</th><th scope="col">Temperature (°C)</th><th scope="col">Source</th></tr></thead>
+          <thead><tr><th scope="col">Observed (IST)</th><th scope="col">Zone</th><th scope="col">pH</th><th scope="col">Temperature (�C)</th><th scope="col">Source</th></tr></thead>
           <tbody id="reading-rows"></tbody>
         </table>
       </div>
@@ -190,7 +190,7 @@
     </dialog>
     <section class="card history" aria-labelledby="history-title" hidden>
       <div class="card-head"><div><h2 id="history-title">Recent observations</h2><p>Times shown in IST</p></div></div>
-      <p id="history-status" role="status">Loading observations…</p>
+      <p id="history-status" role="status">Loading observations.</p>
       <ul id="report-list" class="report-list"></ul>
     </section>
   </main>
