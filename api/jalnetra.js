@@ -1,12 +1,22 @@
-import { BlobPreconditionFailedError, get, put } from '@vercel/blob';
+import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from '@vercel/blob';
 import { createHostedHandler, SnapshotConflict } from '../src/hosted.js';
 
 const store = {
-  async read(path) {
+  async read(path, { forWrite }) {
+    let revision;
+    if (forWrite) {
+      try {
+        revision = (await head(path)).etag;
+        if (!revision) throw new Error('Missing private snapshot revision.');
+      } catch (error) {
+        if (error instanceof BlobNotFoundError) return null;
+        throw error;
+      }
+    }
     const result = await get(path, { access: 'private', useCache: false });
     if (!result) return null;
-    if (result.statusCode !== 200 || !result.stream || !result.blob.etag) throw new Error('Invalid private snapshot.');
-    return { bytes: Buffer.from(await new Response(result.stream).arrayBuffer()), etag: result.blob.etag };
+    if (result.statusCode !== 200 || !result.stream) throw new Error('Invalid private snapshot.');
+    return { bytes: Buffer.from(await new Response(result.stream).arrayBuffer()), etag: revision };
   },
   async write(path, bytes, etag) {
     try {

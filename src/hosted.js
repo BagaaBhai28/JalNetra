@@ -86,7 +86,7 @@ export function createHostedHandler(store) {
       }
 
       const blobPath = 'sessions/' + token + '.sqlite';
-      const snapshot = token ? await store.read(blobPath) : null;
+      const snapshot = token ? await store.read(blobPath, { forWrite: write }) : null;
       if (!write && !snapshot) return await dispatch(request, path + query, url.origin, ':memory:', vision);
 
       directory = await mkdtemp(join(tmpdir(), 'jalnetra-host-'));
