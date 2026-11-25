@@ -1,4 +1,4 @@
-import { drawMap, nearestZone, sectorAt } from './lake-map.js';
+import { interactiveMap, nearestZone, placeMarkers, renderViewport, sectorAt } from './lake-map.js';
 import { readingText, renderReadings } from './readings.js';
 
 const form = document.querySelector('#report-form');
@@ -25,11 +25,29 @@ const gpsStatus = document.querySelector('#gps-status');
 const map = document.querySelector('#lake-map');
 const tiles = document.querySelector('#map-tiles');
 const cityMap = document.querySelector('#city-map');
+const mapFrame = document.querySelector('#city-map-frame');
 const cityTiles = document.querySelector('#city-map-tiles');
 const cityMarkers = document.querySelector('#city-markers');
+const landmarkLayer = document.querySelector('#city-landmarks');
 const lakeChoices = document.querySelector('#lake-choices');
-let cityPoints = [];
-let shoreViewport;
+const lakeSearch = document.querySelector('#lake-search');
+const lakeProfile = document.querySelector('#lake-profile');
+const cityStatus = document.querySelector('#city-status');
+const sectorChoices = document.querySelector('#sector-choices');
+const reportToggle = document.querySelector('#report-toggle');
+const observationCard = document.querySelector('#observation-card');
+const demoWorkspace = document.querySelector('#demo-workspace');
+const demoGps = gpsButton.parentElement;
+const demoGpsStatus = gpsStatus.parentElement;
+const cityEvidence = document.querySelector('#city-evidence');
+const evidencePanel = evidenceContent.parentElement;
+const demoEvidence = evidencePanel.parentElement;
+const landmarks = [
+  { id: 'airport', label: 'Kempegowda Airport', latitude: 13.1986, longitude: 77.7066 },
+  { id: 'electronic-city', label: 'Electronic City', latitude: 12.8479, longitude: 77.6633 },
+];
+const cityPoints = [];
+let reportOpen = false;
 let recentReportCount;
 const draftDialog = document.querySelector('#draft-dialog');
 const draftForm = document.querySelector('#draft-form');
@@ -71,7 +89,7 @@ function updateTimestamp() {
 }
 
 function highlightZone() {
-  for (const marker of markers.children) {
+  for (const marker of [...markers.children, ...sectorChoices.children]) {
     marker.setAttribute('aria-pressed', String(marker.dataset.zoneId === zone.value));
     const hotspot = dashboard?.zones.find(item => item.zoneId === marker.dataset.zoneId);
     marker.dataset.status = hotspot?.status ?? 'none';
@@ -291,13 +309,24 @@ async function normalize(file) {
   }
 }
 
-function redrawMap() {
-  shoreViewport = currentLake?.kind === 'geographic' ?
-    drawMap(map, tiles, currentLake.zones, markers, 16, 46) : null;
-}
-
-function redrawCity() {
-  drawMap(cityMap, cityTiles, cityPoints, cityMarkers, 13, 62);
+function renderCity(viewport) {
+  cityMap.dataset.zoom = viewport.zoom;
+  renderViewport(cityTiles, cityPoints, cityMarkers, viewport);
+  placeMarkers(landmarks, landmarkLayer, viewport);
+  if (currentLake?.kind === 'geographic') placeMarkers(currentLake.zones, markers, viewport);
+  const labelBounds = [...landmarkLayer.children].filter(item => !item.hasAttribute('data-offscreen'))
+    .map(item => item.getBoundingClientRect());
+  for (const pin of cityMarkers.children) {
+    const label = pin.firstElementChild;
+    const box = label.getBoundingClientRect();
+    const collision = labelBounds.some(other =>
+      box.left < other.right + 4 && box.right > other.left - 4 &&
+      box.top < other.bottom + 4 && box.bottom > other.top - 4);
+    const suppress = pin.hasAttribute('data-offscreen') || collision ||
+      (currentLake?.kind === 'geographic' && currentLake.id !== pin.dataset.mapId && viewport.zoom >= 13);
+    pin.toggleAttribute('data-small-label', suppress);
+    if (!suppress) labelBounds.push(box);
+  }
 }
 
 function selectShoreline(id) {
@@ -305,6 +334,16 @@ function selectShoreline(id) {
   zone.value = id;
   gpsStatus.hidden = true;
   zone.dispatchEvent(new Event('change', { bubbles: true }));
+  if (currentLake.kind === 'geographic') {
+    cityStatus.textContent = '';
+    const photoWasHidden = observationCard.hidden;
+    reportOpen = true;
+    updateLakeProfile();
+    if (photoWasHidden) {
+      lakeProfile.scrollTop = observationCard.offsetTop;
+      document.querySelector('#form-title').focus({ preventScroll: true });
+    }
+  }
 }
 
 function updateLakeProfile() {
@@ -313,61 +352,136 @@ function updateLakeProfile() {
   for (const button of [...cityMarkers.children, ...lakeChoices.children]) {
     button.setAttribute('aria-pressed', String(button.dataset.mapId === currentLake.id));
   }
-  document.querySelector('#profile-name').textContent = real ? currentLake.name : 'Choose a lake';
-  document.querySelector('#profile-locality').textContent = real ? currentLake.locality : '';
-  document.querySelector('#profile-description').textContent = real ? currentLake.description :
-    'Select a pin or name to explore its shoreline.';
-  const observations = document.querySelector('#profile-observations');
+  lakeProfile.hidden = !real;
+  observationCard.hidden = real && (!reportOpen || !zone.value);
+  if (!real) return;
+  lakeProfile.classList.toggle('is-reporting', !observationCard.hidden);
+  document.querySelector('#profile-name').textContent = currentLake.name;
+  document.querySelector('#profile-locality').textContent = currentLake.locality;
+  document.querySelector('#profile-description').textContent = currentLake.description;
   const watch = dashboard?.zones.filter(item => item.status !== 'none').length;
-  observations.textContent = real ?
+  document.querySelector('#profile-observations').textContent =
     currentLake.zones.length + ' reporting sectors' +
-    (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent reports in this session') +
-    (watch === undefined ? '' : ' · ' + watch + ' sectors with active evidence') : '';
-  const reference = document.querySelector('#lake-reference');
-  reference.hidden = !real;
-  if (real) reference.href = currentLake.reference;
-  document.querySelector('#view-shoreline').hidden = !real;
+    (recentReportCount === undefined ? '' : ' · ' + recentReportCount + ' recent observations') +
+    (watch ? ' · ' + watch + ' sectors with active evidence' : '');
+  document.querySelector('#lake-reference').href = currentLake.reference;
+  reportToggle.hidden = !zone.value;
+  reportToggle.textContent = observationCard.hidden ? 'Show report form' : 'Hide report form';
+}
+
+function filterLakeList() {
+  const query = lakeSearch.value.trim().toLocaleLowerCase();
+  let count = 0;
+  for (const button of lakeChoices.children) {
+    button.hidden = !button.dataset.search.includes(query);
+    if (!button.hidden) count++;
+  }
+  document.querySelector('#lake-count').textContent = count ? count + ' mapped ' + (count === 1 ? 'lake' : 'lakes') : 'No matching lake';
 }
 
 function buildCityExplorer() {
-  for (const lake of lakes.filter(item => item.kind === 'geographic')) {
+  for (const landmark of landmarks) {
+    const label = textElement('span', landmark.label, 'city-landmark');
+    label.dataset.mapId = landmark.id;
+    landmarkLayer.append(label);
+  }
+  for (const lake of lakes.filter(item => item.kind === 'geographic').sort((a, b) => a.name.localeCompare(b.name))) {
     const [latitude, longitude] = lake.center;
     cityPoints.push({ id: lake.id, latitude, longitude });
     const pin = document.createElement('button');
     pin.type = 'button';
     pin.className = 'city-pin';
     pin.dataset.mapId = lake.id;
+    pin.setAttribute('aria-label', lake.name);
     pin.append(textElement('span', lake.name));
     const choice = textElement('button', lake.name, 'lake-choice');
     choice.type = 'button';
     choice.dataset.mapId = lake.id;
+    choice.dataset.search = (lake.name + ' ' + lake.locality).toLocaleLowerCase();
     for (const button of [pin, choice]) {
       button.addEventListener('click', () => {
-        if (!lakeSelect.disabled) setLake(lake.id);
+        if (lakeSelect.disabled) return;
+        setLake(lake.id);
+        lakeProfile.querySelector('#close-lake').focus({ preventScroll: true });
+        if (button === choice) mapFrame.scrollIntoView({ block: 'nearest' });
       });
     }
     cityMarkers.append(pin);
     lakeChoices.append(choice);
   }
-  redrawCity();
+  filterLakeList();
+  cityController.redraw();
 }
 
-map.addEventListener('click', event => {
-  if (!shoreViewport || zone.disabled || event.target.closest('button,a')) return;
-  const rect = map.getBoundingClientRect();
-  const sector = sectorAt(currentLake, shoreViewport, event.clientX - rect.left, event.clientY - rect.top);
+const cityController = interactiveMap(cityMap, renderCity, (viewport, x, y) => {
+  if (currentLake?.kind !== 'geographic' || viewport.zoom < 13) return;
+  const sector = sectorAt(currentLake, viewport, x, y);
   if (sector) selectShoreline(sector.id);
-  else {
-    gpsStatus.hidden = false;
-    gpsStatus.textContent = 'Choose a shoreline sector near one of the markers.';
-  }
+});
+
+function resetCity() {
+  if (lakeSelect.disabled) return;
+  if (currentLake?.kind === 'geographic') setLake('demo-lake');
+  else cityController.fit();
+  cityMap.focus({ preventScroll: true });
+}
+
+function setExpanded(expanded) {
+  mapFrame.classList.toggle('is-expanded', expanded);
+  document.body.classList.toggle('map-expanded', expanded);
+  const button = document.querySelector('#map-expand');
+  const label = expanded ? 'Minimize map' : 'Expand map';
+  button.setAttribute('aria-pressed', String(expanded));
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  button.textContent = expanded ? '⤡' : '⤢';
+}
+
+lakeSearch.addEventListener('input', filterLakeList);
+lakeSearch.addEventListener('keydown', event => {
+  if (event.key === 'Enter') lakeChoices.querySelector('button:not([hidden])')?.click();
+});
+document.querySelector('#map-zoom-in').addEventListener('click', () => cityController.zoomBy(1));
+document.querySelector('#map-zoom-out').addEventListener('click', () => cityController.zoomBy(-1));
+document.querySelector('#map-reset').addEventListener('click', resetCity);
+document.querySelector('#close-lake').addEventListener('click', resetCity);
+document.querySelector('#map-expand').addEventListener('click', () => setExpanded(!mapFrame.classList.contains('is-expanded')));
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && mapFrame.classList.contains('is-expanded')) setExpanded(false);
+});
+reportToggle.addEventListener('click', () => {
+  reportOpen = !reportOpen;
+  updateLakeProfile();
+  lakeProfile.scrollTop = reportOpen ? observationCard.offsetTop : 0;
 });
 
 function setLake(id) {
   const selected = lakes.find(item => item.id === id);
   if (!selected) return;
   const geographic = selected.kind === 'geographic';
+  if (currentLake === selected) {
+    if (geographic) cityController.fit(selected.zones, true);
+    return;
+  }
   currentLake = selected;
+  reportOpen = false;
+  demoWorkspace.hidden = geographic;
+  cityEvidence.hidden = !geographic;
+  if (geographic) {
+    cityMap.append(markers);
+    document.querySelector('#city-report').append(observationCard);
+    document.querySelector('#city-gps').append(gpsButton);
+    cityStatus.after(gpsStatus);
+    cityEvidence.append(evidencePanel);
+  } else {
+    map.insertBefore(markers, document.querySelector('#map-attribution'));
+    demoWorkspace.append(observationCard);
+    demoGps.append(gpsButton);
+    demoGpsStatus.insertBefore(gpsStatus, document.querySelector('#selected-shoreline'));
+    demoEvidence.append(evidencePanel);
+  }
+  cityStatus.textContent = '';
+  lakeProfile.scrollTop = 0;
   lakeSelect.value = id;
   requestId = crypto.randomUUID();
   dashboard = undefined;
@@ -393,6 +507,7 @@ function setLake(id) {
   zone.replaceChildren(new Option('Choose a zone', ''));
   readingZone.replaceChildren(new Option('All zones', ''));
   markers.replaceChildren();
+  sectorChoices.replaceChildren();
   for (const item of selected.zones) {
     zone.add(new Option(item.name, item.id));
     readingZone.add(new Option(item.name, item.id));
@@ -408,13 +523,21 @@ function setLake(id) {
     }
     marker.addEventListener('click', () => selectShoreline(item.id));
     markers.append(marker);
+    if (geographic) {
+      const direction = textElement('button', item.name.split(' ')[0], 'sector-choice');
+      direction.type = 'button';
+      direction.dataset.zoneId = item.id;
+      direction.addEventListener('click', () => selectShoreline(item.id));
+      sectorChoices.append(direction);
+    }
   }
   const url = new URL(window.location.href);
   if (geographic) url.searchParams.set('lake', id);
   else url.searchParams.delete('lake');
   window.history.replaceState(null, '', url);
   zonesLoaded = true;
-  redrawMap();
+  if (geographic) cityController.fit(selected.zones, true);
+  else cityController.fit();
   highlightZone();
   renderReadings([], formatTime);
   return refreshDashboard();
@@ -430,8 +553,6 @@ async function loadLakes() {
 
 lakeSelect.addEventListener('change', () => setLake(lakeSelect.value));
 readingZone.addEventListener('change', loadReadings);
-new ResizeObserver(redrawMap).observe(map);
-new ResizeObserver(redrawCity).observe(cityMap);
 gpsButton.addEventListener('click', () => {
   const lake = currentLake;
   gpsStatus.hidden = false;
@@ -449,8 +570,8 @@ gpsButton.addEventListener('click', () => {
       gpsStatus.textContent = 'GPS is too far from this lake or too imprecise. Choose a zone manually.';
       return;
     }
-    zone.value = suggested.id;
-    zone.dispatchEvent(new Event('change', { bubbles: true }));
+    selectShoreline(suggested.id);
+    gpsStatus.hidden = false;
     gpsStatus.textContent = 'Suggested zone is ' + suggested.name + '. Check the map and adjust if needed.';
   }, () => {
     gpsButton.disabled = false;

@@ -20,25 +20,44 @@
       <p>Choose a lake and shoreline zone, then add a photo and any readings you collected.</p>
     </section>
     <section class="card city-explorer" aria-labelledby="city-title">
-      <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Select a lake name to see its details and reporting sectors.</p></div></div>
+      <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>From the airport to Electronic City. Drag to explore or zoom in to see more lake names.</p></div></div>
       <div class="city-grid">
-        <div class="map city-map" id="city-map">
-          <div id="city-map-tiles" class="map-tiles" aria-hidden="true"></div>
-          <div id="city-markers" class="map-zones" aria-label="Bengaluru lakes on the map"></div>
-          <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
+        <div class="city-map-frame" id="city-map-frame">
+          <div class="map city-map" id="city-map" tabindex="0" role="region" aria-label="Interactive Bengaluru map. Arrow keys pan, plus and minus zoom, Home resets.">
+            <div id="city-map-tiles" class="map-tiles" aria-hidden="true"></div>
+            <div id="city-landmarks" class="map-zones" aria-hidden="true"></div>
+            <div id="city-markers" class="map-zones" aria-label="Bengaluru lakes on the map"></div>
+          </div>
+          <div class="city-controls" aria-label="Map controls">
+            <button id="map-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+            <button id="map-zoom-out" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
+            <button id="map-reset" type="button" aria-label="Show all Bengaluru" title="Show all Bengaluru">&#8962;</button>
+            <button id="map-expand" type="button" aria-label="Expand map" title="Expand map" aria-pressed="false">&#10530;</button>
+          </div>
+          <section id="lake-profile" aria-labelledby="profile-name" hidden>
+            <div class="profile-heading">
+              <div><h3 id="profile-name"></h3><p id="profile-locality"></p></div>
+              <button id="close-lake" type="button" aria-label="Close lake details" title="Close lake details">&times;</button>
+            </div>
+            <p id="profile-description"></p>
+            <p id="profile-observations"></p>
+            <p class="sector-help">Choose a shoreline side to add a photo or readings. Reporting sectors are approximate.</p>
+            <div id="sector-choices" class="sector-choices" aria-label="Shoreline sectors"></div>
+            <div class="profile-links">
+              <a id="lake-reference" target="_blank" rel="noopener">Lake reference</a>
+              <button id="report-toggle" type="button" class="inline-action" hidden></button>
+              <span id="city-gps"></span>
+            </div>
+            <p id="city-status" role="status"></p>
+            <div id="city-report"></div>
+          </section>
+          <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">&copy; OpenStreetMap contributors</a>
         </div>
         <div class="city-sidebar">
+          <label for="lake-search">Find a lake</label>
+          <input type="search" id="lake-search" placeholder="Search name or area">
+          <p id="lake-count" class="hint" role="status">Loading lakes&hellip;</p>
           <div id="lake-choices" class="lake-choices" aria-label="Select a Bengaluru lake"></div>
-          <section id="lake-profile" aria-labelledby="profile-name">
-            <h3 id="profile-name">Choose a lake</h3>
-            <p id="profile-locality"></p>
-            <p id="profile-description">Select a pin or name to explore its shoreline.</p>
-            <p id="profile-observations"></p>
-            <div class="profile-links">
-              <a id="view-shoreline" href="#map-title" hidden>Open shoreline map</a>
-              <a id="lake-reference" target="_blank" rel="noopener" hidden>Lake reference</a>
-            </div>
-          </section>
         </div>
       </div>
     </section>
@@ -46,7 +65,7 @@
       <button id="restart-rehearsal" class="secondary" type="button">Start rehearsal</button>
       <p id="rehearsal-status" role="status">Start with one foam observation at North Inlet. Rehearsal data is cleared when the server stops.</p>
     </section>
-    <div class="workspace">
+    <div class="workspace" id="demo-workspace">
       <section class="card map-card" aria-labelledby="map-title">
         <div class="card-head"><div><h2 id="map-title">Demo Lake</h2><p>Shoreline zone map</p></div><span id="map-kind" class="tag">Illustrative</span></div>
         <div class="map-controls">
@@ -76,8 +95,8 @@
           <div id="evidence-content" aria-live="polite"></div>
         </section>
       </section>
-      <section class="card form-card" aria-labelledby="form-title">
-        <div class="card-head"><div><h2 id="form-title">New observation</h2><p>Photo, location and observation time</p></div></div>
+      <section class="card form-card" id="observation-card" aria-labelledby="form-title">
+        <div class="card-head"><div><h2 id="form-title" tabindex="-1">New observation</h2><p>Photo, location and observation time</p></div></div>
         <form id="report-form">
           <label for="zone">Shoreline zone</label>
           <select id="zone" name="zoneId" required><option value="">Choose a zone</option></select>
@@ -108,6 +127,7 @@
         </form>
       </section>
     </div>
+    <div id="city-evidence" class="card history" hidden></div>
     <section class="card history" aria-labelledby="readings-title">
       <div class="card-head">
         <div><h2 id="readings-title">Water readings</h2><p>Last 30 days · up to 100 observations · IST</p></div>

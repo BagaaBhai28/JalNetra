@@ -31,21 +31,50 @@ p { margin: 0; }
 .tag { background: #ebf2e5; border-radius: 20px; padding: 5px 9px; font-size: .72rem; font-weight: 650; }
 .city-explorer { margin-bottom: 15px; }
 .city-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(245px, 1fr); }
-.city-map { min-height: 300px; height: clamp(300px, 40vw, 420px); aspect-ratio: auto; }
-.city-sidebar { padding: 15px 18px; border-left: 1px solid var(--line); }
-.lake-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.city-map-frame { position: relative; min-width: 0; height: clamp(300px, 40vw, 420px); }
+.city-map { height: 100%; aspect-ratio: auto; cursor: grab; touch-action: none; user-select: none; }
+.city-map.is-dragging { cursor: grabbing; }
+.city-map:focus-visible { outline: 2px solid #174e3f; outline-offset: -2px; }
+.city-map-frame.is-expanded { position: fixed; z-index: 5; inset: 0; height: 100dvh; }
+.map-expanded { overflow: hidden; }
+.city-sidebar { padding: 15px 18px; border-left: 1px solid var(--line); min-width: 0; }
+.lake-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 280px; overflow: auto; align-content: start; }
 .lake-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 18px; padding: 6px 9px; cursor: pointer; font-size: .78rem; }
 .lake-choice[aria-pressed="true"] { background: #174e3f; color: #fff; }
 .city-pin { position: absolute; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; width: 18px; height: 18px; padding: 0; background: #176c58; cursor: pointer; box-shadow: 0 1px 5px #1837318a; }
-.city-pin span { position: absolute; bottom: 17px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #183731; background: #fffdf4; border: 1px solid #a5bdaf; border-radius: 5px; padding: 2px 5px; font-size: .75rem; font-weight: 650; }
-.city-pin[data-map-id="madiwala-lake"] span { bottom: auto; top: 17px; }
+.city-pin span { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); white-space: nowrap; color: #183731; background: #fffdf4; border: 1px solid #a5bdaf; border-radius: 5px; padding: 2px 5px; font-size: .69rem; font-weight: 650; }
+.city-pin[data-small-label] span { visibility: hidden; }
+.city-pin:is(:focus-visible, :hover) { z-index: 2; }
+.city-pin:is(:focus-visible, :hover) span { visibility: visible; }
+.city-map [data-offscreen] { visibility: hidden; }
+.city-map [data-offscreen] span { visibility: hidden; }
 .city-pin[aria-pressed="true"] { background: #a14f28; z-index: 1; }
 .city-pin[aria-pressed="true"] span { color: #fff; background: #174e3f; }
+.city-landmark { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; padding: 2px 5px; border-radius: 4px; background: #213d43; color: white; font-size: .68rem; font-weight: 650; }
+#city-landmarks { pointer-events: none; }
+.city-controls { position: absolute; z-index: 3; right: 10px; top: 10px; display: grid; gap: 4px; }
+.city-controls button, #close-lake { border: 1px solid #a5bdaf; background: #fbfdf9; color: #174137; border-radius: 7px; width: 37px; height: 37px; padding: 0; cursor: pointer; font-size: 1.25rem; }
+.city-controls button:hover, #close-lake:hover { background: #e2eedf; }
+#lake-profile { position: absolute; z-index: 2; inset: auto 12px 22px; max-width: 375px; max-height: 58%; overflow: auto; overscroll-behavior: contain; padding: 11px 12px; background: var(--white); border: 1px solid #b8cfc0; border-radius: 12px; box-shadow: 0 5px 22px #19372c35; }
+#lake-profile.is-reporting { max-height: 69%; }
+.profile-heading { display: flex; align-items: start; justify-content: space-between; gap: 9px; }
+#close-lake { flex: 0 0 auto; width: 30px; height: 30px; }
 #lake-profile h3 { margin: 0 0 6px; font-size: 1.12rem; }
 #lake-profile p { margin: 0 0 8px; font-size: .83rem; color: var(--muted); }
+#lake-profile .sector-help { margin-bottom: 4px; }
 #profile-locality { font-weight: 650; }
-.profile-links { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.profile-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
 .profile-links a, #selected-shoreline a { color: #16624d; font-size: .82rem; font-weight: 650; }
+.sector-choices { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 7px; }
+.sector-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: .8rem; }
+.sector-choice[aria-pressed="true"] { background: #174e3f; color: #fff; }
+.inline-action, #city-gps button { border: 0; padding: 0; margin: 0; background: transparent; cursor: pointer; color: #16624d; font-size: .82rem; font-weight: 650; text-decoration: underline; }
+#city-report .form-card { margin-top: 9px; border-radius: 8px; box-shadow: none; }
+#city-report .card-head, #city-report form { padding: 8px 9px; }
+#lake-profile #gps-status { padding: 0; }
+#city-status:empty { display: none; }
+.city-map-frame > .map-attribution { z-index: 3; }
+.workspace[hidden] { display: none; }
 #selected-shoreline { color: #183731; font-weight: 650; }
 .map-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 14px; padding: 10px 19px; }
 .map-controls > div { flex: 1 1 170px; max-width: 310px; }
@@ -56,6 +85,8 @@ p { margin: 0; }
 .map-tiles img { position: absolute; max-width: none; }
 .map-attribution { position: absolute; right: 0; bottom: 0; background: #fffef7; padding: 2px 6px; color: #163a31; font-size: .7rem; }
 .map svg, .map-zones { position: absolute; height: 100%; width: 100%; inset: 0; }
+.city-map #map-zones { pointer-events: none; }
+.city-map #map-zones button { pointer-events: auto; }
 .contour { stroke: #74a28d; stroke-width: 1; fill: none; }
 .shore { fill: #93ba9e; }
 .lake { fill: #4b8e86; stroke: #387e75; stroke-width: 1.5; }
@@ -135,7 +166,9 @@ dialog textarea { min-height: 170px; }
 @media (max-width: 730px) {
   .city-grid { grid-template-columns: 1fr; }
   .city-sidebar { border-left: 0; border-top: 1px solid var(--line); }
-  .city-map { min-height: 265px; height: 300px; }
+  .city-map-frame { height: 300px; }
+  .lake-choices { max-height: 119px; }
+  #lake-profile { max-width: 100%; max-height: 63%; inset-inline: 8px; }
   .workspace { grid-template-columns: 1fr; }
   main { width: calc(100% - 24px); }
 }

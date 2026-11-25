@@ -52,7 +52,9 @@ The Supabase migration in `supabase/migrations` provisions lake-scoped membershi
 
 ### Bengaluru lake maps and water readings
 
-Open the **Bengaluru lake map** and select a named pin or use the name list. The explorer includes **Ulsoor Lake**, **Sankey Tank**, **Agara Lake**, **Madiwala Lake**, and **Bellandur Lake**. The lake profile shows its locality, a source reference, and recent session activity. Open the detailed shoreline map, then click near a reporting sector or click its marker and use **Go to photo upload**. The observation form carries the selected sector into the upload. Reporting sectors are application-defined and approximate.
+The **Bengaluru lake map** opens with a regional view from Devanahalli and Kempegowda International Airport to Electronic City. It includes 21 named reporting lakes across north, south, east, west, and central Bengaluru. Drag to pan, scroll or pinch to zoom, or use the map buttons to zoom, reset, and expand. With the map focused, arrow keys pan and plus and minus zoom.
+
+Select a pin or search for a lake by name or area. The map zooms to that lake and opens its profile directly over the map. Select a north, east, south, or west shoreline marker or directional button to open the photo form in the same panel. The form carries the selected lake and approximate reporting sector into the upload. Optional readings and notes are saved with the observation.
 
 **Suggest zone from GPS** works when the browser can obtain an accurate location near the selected lake. The app saves the selected sector, while GPS coordinates stay in the browser. Manual zone selection is available. The illustrative Demo Lake stays available offline and uses labelled sample images.
 

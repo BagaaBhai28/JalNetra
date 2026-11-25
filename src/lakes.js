@@ -1,4 +1,24 @@
-// The real lake locations are checked against CPCB station records and OpenStreetMap.
+const lakeAtlas = 'https://data.opencity.in/dataset/914d6bf1-2d10-458a-96a5-ff51d6d8f36e';
+const cityLakeList = 'https://en.wikipedia.org/wiki/Lakes_in_Bengaluru';
+const northLakeStudy = 'https://wgbis.ces.iisc.ac.in/energy/water/paper/jb_biotic_indices/introduction.htm';
+
+function regionalLake(id, name, locality, description, center, span, reference) {
+  const [latitude, longitude] = center;
+  const [north, east] = span;
+  return {
+    id, name, locality, description, center, reference, kind: 'geographic',
+    gpsRadius: Math.max(420, Math.round(Math.max(...span) * 170000)),
+    shorePickRadius: Math.max(145, Math.round(Math.max(...span) * 68000)),
+    zones: [
+      { id: id + '-north', name: 'North sector', latitude: latitude + north, longitude },
+      { id: id + '-east', name: 'East sector', latitude, longitude: longitude + east },
+      { id: id + '-south', name: 'South sector', latitude: latitude - north, longitude },
+      { id: id + '-west', name: 'West sector', latitude, longitude: longitude - east },
+    ],
+  };
+}
+
+// Regional pins use published lake locations with approximate directional reporting sectors.
 export const lakes = [
   {
     id: 'demo-lake',
@@ -92,6 +112,54 @@ export const lakes = [
       { id: 'bellandur-west', name: 'West sector', latitude: 12.9350, longitude: 77.6453 },
     ],
   },
+  regionalLake('devanahalli-lake', 'Devanahalli Lake', 'Devanahalli · Airport area',
+    'A lake north of Kempegowda International Airport, near Devanahalli town.',
+    [13.2523, 77.7079], [.0010, .0011], 'https://data.opencity.in/dataset/f9b63d78-4cec-4923-a143-de452c63ccd0'),
+  regionalLake('doddajala-lake', 'Doddajala Lake', 'Doddajala · Airport corridor',
+    'A lake near Doddajala on the corridor between Yelahanka and the airport.',
+    [13.1787, 77.6397], [.0010, .0012], 'https://data.opencity.in/dataset/f9b63d78-4cec-4923-a143-de452c63ccd0'),
+  regionalLake('hesaraghatta-lake', 'Hesaraghatta Lake', 'Hesaraghatta · Northwest Bengaluru',
+    'A reservoir northwest of Bengaluru on the Arkavathy River.',
+    [13.1498, 77.4899], [.0080, .0085], 'https://mapcarta.com/W41662659'),
+  regionalLake('yelahanka-lake', 'Yelahanka Lake', 'Yelahanka · North Bengaluru',
+    'A lake east of Yelahanka town in the northern lake chain.',
+    [13.1108, 77.5952], [.0033, .0038], cityLakeList),
+  regionalLake('jakkur-lake', 'Jakkur Lake', 'Jakkur · North Bengaluru',
+    'A lake in the interconnected Jakkur and Rachenahalli system.',
+    [13.0867, 77.6101], [.0032, .0041], northLakeStudy),
+  regionalLake('rachenahalli-lake', 'Rachenahalli Lake', 'Rachenahalli · North Bengaluru',
+    'A lake downstream of Jakkur in the northern lake chain.',
+    [13.0626, 77.6134], [.0025, .0033], northLakeStudy),
+  regionalLake('hebbal-lake', 'Hebbal Lake', 'Hebbal · North Bengaluru',
+    'An urban lake near the Hebbal interchange.',
+    [13.0469, 77.5858], [.0032, .0040], cityLakeList),
+  regionalLake('chikkabanavara-lake', 'Chikkabanavara Lake', 'Chikkabanavara · Northwest Bengaluru',
+    'A lake near Chikkabanavara in the northwestern part of the city.',
+    [13.0825, 77.5068], [.0028, .0033], cityLakeList),
+  regionalLake('kommaghatta-lake', 'Kommaghatta Lake', 'Kommaghatta · West Bengaluru',
+    'A lake in the Kengeri area between Kommaghatta and Ramasandra.',
+    [12.9312, 77.4672], [.0016, .0016], lakeAtlas),
+  regionalLake('kengeri-lake', 'Kengeri Lake', 'Kengeri · West Bengaluru',
+    'A lake recorded in the municipal lake inventory for the R. R. Nagar zone.',
+    [12.9172, 77.4891], [.0009, .0011], 'https://lms.bbmpgov.in/lake'),
+  regionalLake('varthur-lake', 'Varthur Lake', 'Varthur · East Bengaluru',
+    'A lake west of Varthur and downstream of Bellandur Lake.',
+    [12.9487, 77.7392], [.0050, .0080], cityLakeList),
+  regionalLake('doddanekundi-lake', 'Doddanekundi Lake', 'Doddanekundi · East Bengaluru',
+    'An urban lake near Doddanekundi and the Outer Ring Road.',
+    [12.9750, 77.6875], [.0024, .0033], cityLakeList),
+  regionalLake('kalkere-lake', 'Kalkere Lake', 'Kalkere · East Bengaluru',
+    'A lake in the Kalkere and Horamavu area.',
+    [13.0473, 77.6642], [.0032, .0040], cityLakeList),
+  regionalLake('hulimavu-lake', 'Hulimavu Lake', 'Hulimavu · South Bengaluru',
+    'An urban lake in the Hulimavu area near Bannerghatta Road.',
+    [12.8716, 77.6036], [.0026, .0027], cityLakeList),
+  regionalLake('begur-lake', 'Begur Lake', 'Begur · South Bengaluru',
+    'A lake near Begur, north of Electronic City.',
+    [12.8754, 77.6298], [.0026, .0030], cityLakeList),
+  regionalLake('veerasandra-lake', 'Veerasandra Lake', 'Veerasandra · Electronic City',
+    'A lake beside Electronic City Phase II, documented in the Bengaluru Metropolitan Area lake atlas.',
+    [12.8399, 77.6754], [.0014, .0013], 'https://www.openstreetmap.org/relation/17012230'),
 ];
 
 export function findLake(id) {

@@ -1,5 +1,11 @@
 const tileSize = 256;
 
+// The overview extends beyond the city core to include Devanahalli and Electronic City.
+export const bengaluruExtent = [
+  { latitude: 13.269, longitude: 77.435 },
+  { latitude: 12.810, longitude: 77.800 },
+];
+
 export function project(latitude, longitude, zoom) {
   const radians = latitude * Math.PI / 180;
   const size = tileSize * 2 ** zoom;
@@ -67,8 +73,10 @@ function drawTiles(layer, { left, top, zoom, width, height }) {
 
   const reusable = new Map([...layer.children].map(tile => [tile.dataset.tile, tile]));
   const visible = new Set();
+  const world = 2 ** zoom;
   for (let x = firstX; x <= lastX; x++) {
     for (let y = firstY; y <= lastY; y++) {
+      if (y < 0 || y >= world) continue;
       const key = zoom + '/' + x + '/' + y;
       visible.add(key);
       let tile = reusable.get(key);
@@ -76,7 +84,8 @@ function drawTiles(layer, { left, top, zoom, width, height }) {
         tile = new Image(tileSize, tileSize);
         tile.alt = '';
         tile.dataset.tile = key;
-        tile.src = 'https://tile.openstreetmap.org/' + key + '.png';
+        tile.draggable = false;
+        tile.src = 'https://tile.openstreetmap.org/' + zoom + '/' + ((x % world + world) % world) + '/' + y + '.png';
         layer.append(tile);
       }
       tile.style.left = (x * tileSize - left) + 'px';
@@ -90,15 +99,166 @@ export function drawMap(container, layer, points, markers, maxZoom, padding) {
   const { width, height } = container.getBoundingClientRect();
   if (!width || !height || !points.length) return null;
   const viewport = fitMap(points, width, height, maxZoom, padding);
+  renderViewport(layer, points, markers, viewport);
+  return viewport;
+}
+
+export function renderViewport(layer, points, markers, viewport) {
   drawTiles(layer, viewport);
+  placeMarkers(points, markers, viewport);
+}
+
+export function placeMarkers(points, markers, viewport) {
+  const indexed = new Map(points.map(point => [point.id, point]));
   for (const marker of markers.children) {
-    const point = points.find(item => item.id === marker.dataset.mapId);
+    const point = indexed.get(marker.dataset.mapId);
     if (!point) continue;
     const location = project(point.latitude, point.longitude, viewport.zoom);
-    marker.style.left = (location.x - viewport.left) + 'px';
-    marker.style.top = (location.y - viewport.top) + 'px';
+    const x = location.x - viewport.left;
+    const y = location.y - viewport.top;
+    marker.style.left = x + 'px';
+    marker.style.top = y + 'px';
+    marker.toggleAttribute('data-offscreen', x < 12 || y < 20 || x > viewport.width - 12 || y > viewport.height - 12);
   }
-  return viewport;
+}
+
+export function zoomViewport(viewport, zoom, x, y, nextX = x, nextY = y) {
+  const scale = 2 ** (zoom - viewport.zoom);
+  return {
+    ...viewport, zoom,
+    left: (viewport.left + x) * scale - nextX,
+    top: (viewport.top + y) * scale - nextY,
+  };
+}
+
+export function interactiveMap(surface, render, pick) {
+  const pointers = new Map();
+  let viewport;
+  let overview = true;
+  let dragged = false;
+  let frame;
+  let wheelTime = -Infinity;
+  const minZoom = 9;
+  const maxZoom = 19;
+  const clampZoom = zoom => Math.min(maxZoom, Math.max(minZoom, zoom));
+  function draw() {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = undefined;
+      if (viewport) render(viewport);
+    });
+  }
+  function fit(points = bengaluruExtent, reserveShoreline = false) {
+    const { clientWidth: width, clientHeight: height } = surface;
+    const inset = reserveShoreline ? (width < 560 ? 175 : 140) : 0;
+    viewport = fitMap(points, width, Math.max(120, height - inset), reserveShoreline ? 17 : 13, reserveShoreline ? 38 : 32);
+    viewport.height = height;
+    overview = !reserveShoreline;
+    draw();
+  }
+  function zoomBy(amount, x = viewport.width / 2, y = viewport.height / 2) {
+    const zoom = clampZoom(viewport.zoom + amount);
+    if (zoom === viewport.zoom) return;
+    viewport = zoomViewport(viewport, zoom, x, y);
+    overview = false;
+    draw();
+  }
+  function pan(dx, dy) {
+    viewport.left -= dx;
+    viewport.top -= dy;
+    overview = false;
+    draw();
+  }
+  function relative(x, y) {
+    const rect = surface.getBoundingClientRect();
+    return { x: x - rect.left, y: y - rect.top };
+  }
+  function gesture() {
+    const [a, b] = pointers.values();
+    return b ? {
+      x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, span: Math.hypot(a.x - b.x, a.y - b.y),
+    } : a;
+  }
+  let pinchSpan;
+  surface.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.target.closest('button, a')) return;
+    if (pointers.size === 0) dragged = false;
+    pointers.set(event.pointerId, relative(event.clientX, event.clientY));
+    if (pointers.size === 2) {
+      dragged = true;
+      pinchSpan = gesture().span;
+    }
+    surface.setPointerCapture(event.pointerId);
+  });
+  surface.addEventListener('pointermove', event => {
+    if (!pointers.has(event.pointerId)) return;
+    const before = gesture();
+    const point = relative(event.clientX, event.clientY);
+    if (!dragged && Math.hypot(point.x - before.x, point.y - before.y) < 5) return;
+    pointers.set(event.pointerId, point);
+    const after = gesture();
+    dragged = true;
+    surface.classList.add('is-dragging');
+    if (pointers.size > 1 && pinchSpan > 0 && after.span > 0) {
+      const steps = Math.log2(after.span / pinchSpan);
+      if (Math.abs(steps) >= .65) {
+        const zoom = clampZoom(viewport.zoom + Math.sign(steps));
+        viewport = zoomViewport(viewport, zoom, before.x, before.y, after.x, after.y);
+        pinchSpan = after.span;
+        overview = false;
+        draw();
+        return;
+      }
+    }
+    pan(after.x - before.x, after.y - before.y);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    surface.addEventListener(type, event => {
+      if (!pointers.delete(event.pointerId)) return;
+      if (!pointers.size) {
+        surface.classList.remove('is-dragging');
+        if (type === 'pointerup' && !dragged) {
+          const point = relative(event.clientX, event.clientY);
+          pick(viewport, point.x, point.y);
+        }
+      }
+    });
+  }
+  surface.addEventListener('wheel', event => {
+    event.preventDefault();
+    if (performance.now() - wheelTime < 115 || !event.deltaY) return;
+    wheelTime = performance.now();
+    const point = relative(event.clientX, event.clientY);
+    zoomBy(event.deltaY < 0 ? 1 : -1, point.x, point.y);
+  }, { passive: false });
+  surface.addEventListener('dblclick', event => {
+    if (!event.target.closest('button, a')) {
+      const point = relative(event.clientX, event.clientY);
+      zoomBy(1, point.x, point.y);
+    }
+  });
+  surface.addEventListener('keydown', event => {
+    if (event.target !== surface) return;
+    const movements = { ArrowUp: [0, 90], ArrowDown: [0, -90], ArrowLeft: [90, 0], ArrowRight: [-90, 0] };
+    if (movements[event.key]) pan(...movements[event.key]);
+    else if (event.key === '+' || event.key === '=') zoomBy(1);
+    else if (event.key === '-') zoomBy(-1);
+    else if (event.key === 'Home') fit();
+    else return;
+    event.preventDefault();
+  });
+  fit();
+  new ResizeObserver(() => {
+    if (overview) fit();
+    else {
+      const { clientWidth: width, clientHeight: height } = surface;
+      viewport.left += (viewport.width - width) / 2;
+      viewport.top += (viewport.height - height) / 2;
+      Object.assign(viewport, { width, height });
+      draw();
+    }
+  }).observe(surface);
+  return { fit, zoomBy, redraw: draw };
 }
 
 export function sectorAt(lake, viewport, x, y) {
