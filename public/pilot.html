@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JalNetra · Shared lake reporting</title>
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/pilot-app.js?v=shared-reporting"></script>
+  <link rel="stylesheet" href="/style.css?v=lake-conditions">
+  <script type="module" src="/pilot-app.js?v=lake-conditions"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
@@ -53,6 +53,22 @@
       </form>
       <ul id="pilot-member-list" class="pilot-records"></ul>
     </section>
+    <section class="card history" id="citizen-conditions" hidden aria-labelledby="citizen-conditions-title">
+      <div class="card-head"><div><h2 id="citizen-conditions-title">Lake conditions</h2><p>Shoreline observations from the last seven days. Use these reports to see visible issues around a lake.</p></div><button type="button" class="secondary" id="conditions-refresh">Refresh map</button></div>
+      <div class="map conditions-map" id="conditions-map">
+        <div class="map-tiles" id="conditions-tiles" aria-hidden="true"></div>
+        <div class="map-zones" id="conditions-markers" aria-label="Lake status markers"></div>
+        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+      </div>
+      <div class="evidence-panel">
+        <div class="pilot-actions conditions-legend" aria-label="Map legend">
+          <span data-state="verified">Verified concern</span><span data-state="pending">Awaiting review</span>
+          <span data-state="clear">No visible issue in reviewed photo</span><span data-state="unknown">No recent information</span>
+        </div>
+        <p class="hint">A photo cannot establish water quality or whether a lake is safe to enter.</p>
+        <div id="conditions-detail" aria-live="polite"></div>
+      </div>
+    </section>
     <div class="workspace history" id="pilot-intake" hidden>
       <section class="card"><div class="card-head"><h2>Submit a shoreline photo</h2></div>
         <form id="pilot-photo-form">
@@ -62,7 +78,8 @@
           <p class="hint">Water readings are optional. Enter values only if you measured them. Lake operators can review the photo and request automated image analysis.</p>
           <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (°C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
           <label for="pilot-note">Optional notes</label><textarea id="pilot-note" name="note" maxlength="500" rows="2"></textarea>
-          <button class="primary" type="submit">Save shared observation</button>
+          <button class="primary" type="submit">Save and analyze photo</button>
+          <div id="pilot-preliminary" aria-live="polite"></div>
         </form>
       </section>
       <section class="card"><div class="card-head"><h2>Raise a concern</h2></div>
@@ -71,6 +88,7 @@
           <label for="pilot-concern-type">Concern type</label>
           <select id="pilot-concern-type" name="category" required><option value="dumping">Waste dumping</option><option value="suspected-discharge">Suspected industrial or wastewater discharge</option><option value="sewage">Sewage or drain overflow</option><option value="other">Other shoreline concern</option></select>
           <label for="pilot-concern-text">What did you observe?</label><textarea id="pilot-concern-text" name="description" maxlength="500" rows="4" required></textarea>
+          <p class="hint" id="pilot-linked-report" hidden></p>
           <p class="hint">Describe what you saw and omit names and contact details. Authorized lake operators can view your submission.</p>
           <button class="primary" type="submit">Save shared concern</button>
         </form>

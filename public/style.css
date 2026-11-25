@@ -192,6 +192,18 @@ dialog textarea { min-height: 170px; }
 }
 
 .pilot-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+.conditions-map { aspect-ratio: auto; height: clamp(255px, 44vw, 450px); }
+.conditions-marker { border-radius: 50%; width: 20px; height: 20px; }
+.conditions-marker[aria-pressed="true"] { outline: 2px solid #183731; outline-offset: 2px; }
+.conditions-legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--condition-color); }
+.conditions-legend { font-size: .82rem; }
+.conditions-marker[data-state] { background: var(--condition-color); }
+[data-state="verified"] { --condition-color: #b33338; }
+[data-state="pending"] { --condition-color: #a96300; }
+[data-state="clear"] { --condition-color: #247649; }
+[data-state="unknown"] { --condition-color: #576572; }
+#conditions-detail h3, #pilot-preliminary h3 { margin-top: 12px; }
+#conditions-detail ul, #pilot-preliminary ul { padding-inline-start: 1.2em; }
 .pilot-summary { padding: 10px 18px 0; }
 .pilot-summary:empty { display: none; }
 .pilot-records { list-style: none; margin: 0; padding: 0 18px; }

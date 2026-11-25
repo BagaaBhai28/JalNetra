@@ -7,7 +7,7 @@ import { createPilotComplaint } from './complaints.js';
 const routes = {
   status: 'GET', signup: 'POST', signin: 'POST', refresh: 'POST', recover: 'POST', password: 'POST', signout: 'POST', account: 'GET',
   catalog: 'GET', enroll: 'POST', members: 'GET POST', reports: 'GET', upload: 'POST', concerns: 'GET POST',
-  photo: 'GET', analyze: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
+  conditions: 'GET', photo: 'GET', analyze: 'POST', preliminary: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
 };
 const validUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const tokenPattern = /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/i;
@@ -58,7 +58,7 @@ export function differenceHash(width, height, pixels) {
   return bits.toString(16).padStart(16, '0');
 }
 
-export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest } = {}) {
+export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken } = {}) {
   const configured = /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url ?? '') &&
     /^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey ?? '');
   const vision = apiKey && model ? createOpenAiVision({ apiKey, model, gateway, request: visionRequest }) : null;
@@ -185,11 +185,15 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         const memberships = await result(rest('pilot_memberships', { select: 'lake_id,role', user_id: 'eq.' + user.id }));
         return reply(200, { id: user.id, email: user.email, memberships });
       }
+      if (action === 'conditions') {
+        return reply(200, { signals: await result('/rest/v1/rpc/pilot_lake_conditions') });
+      }
       if (action === 'catalog') {
         const rows = await result(rest('pilot_lakes', { select: 'id,name,slug,pilot_zones(id,name,slug)', order: 'name' }));
         const locations = new Map(lakes.map(lake => [lake.id, lake]));
         return reply(200, { lakes: rows.map(lake => ({
           ...lake,
+          center: locations.get(lake.slug)?.center,
           pilot_zones: lake.pilot_zones.map(zone => {
             const point = locations.get(lake.slug)?.zones.find(item => item.id === zone.slug);
             return point ? { ...zone, latitude: point.latitude, longitude: point.longitude } : zone;
@@ -253,7 +257,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         const lakeId = incoming.searchParams.get('lakeId');
         requireValue(!lakeId || validUuid.test(lakeId), 'INVALID_LAKE', 'Choose a catalog lake.');
         const params = {
-          select: action === 'reports' ? (lakeId ? reportSelect : photoColumns) : 'id,lake_id,zone_id,category,description,created_at',
+          select: action === 'reports' ? (lakeId ? reportSelect : photoColumns) : 'id,lake_id,zone_id,category,description,created_at,report_id',
           order: 'created_at.desc,id.desc', limit: '25', ...(lakeId ? { lake_id: 'eq.' + lakeId } : {}),
         };
         const page = incoming.searchParams.get('page');
@@ -275,18 +279,19 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         return reply(200, { [action]: rows });
       }
       if (action === 'concerns') {
-        const { id, lake_id, zone_id, category, description } = await jsonInput(input);
+        const { id, lake_id, zone_id, category, description, report_id } = await jsonInput(input);
         requireValue([id, lake_id, zone_id].every(value => validUuid.test(value ?? '')) &&
           ['dumping', 'suspected-discharge', 'sewage', 'other'].includes(category) &&
           typeof description === 'string' && description.trim() && description.length <= 500,
         'INVALID_CONCERN', 'Choose a shoreline side and concern type, and describe what you observed.');
-        const data = { id, lake_id, zone_id, category, description: description.trim() };
+        requireValue(report_id == null || validUuid.test(report_id), 'INVALID_REPORT', 'Choose an existing observation.');
+        const data = { id, lake_id, zone_id, category, description: description.trim(), report_id: report_id ?? null };
         const [concern] = await send(rest('pilot_concerns', { on_conflict: 'id' }), data,
           'resolution=ignore-duplicates,return=representation');
         if (concern) return reply(201, concern);
         const user = await account();
         const [prior] = await result(rest('pilot_concerns', { id: 'eq.' + id, reporter_id: 'eq.' + user.id,
-          select: 'id,lake_id,zone_id,category,description,created_at' }));
+          select: 'id,lake_id,zone_id,category,description,created_at,report_id' }));
         requireValue(prior && Object.keys(data).every(key => prior[key] === data[key]),
           'PILOT_CONFLICT', 'Start a new concern for these details.', 409);
         return reply(200, prior);
@@ -339,12 +344,17 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       }
       const data = await jsonInput(input);
       const report = await lookup(data.reportId);
-      await requireOperator(report.lake_id);
+      if (action === 'preliminary') {
+        const user = await account();
+        requireValue(report.photo_path.startsWith(user.id + '/'), 'PILOT_ACCESS_DENIED', 'Use your own observation.', 403);
+      } else {
+        await requireOperator(report.lake_id);
+      }
       const event = { lake_id: report.lake_id, report_id: report.id };
-      if (action === 'analyze') {
+      if (action === 'analyze' || action === 'preliminary') {
         const [existing] = await result(rest('pilot_review_events', { report_id: 'eq.' + report.id, action: 'eq.model', limit: '1' }));
         if (existing) return reply(200, existing);
-        requireValue(vision, 'VISION_NOT_CONFIGURED', 'Real analysis has not been configured. Use human review for this report.', 503);
+        requireValue(vision && (action !== 'preliminary' || analysisWriteToken), 'VISION_NOT_CONFIGURED', 'Real analysis has not been configured. Use human review for this report.', 503);
         const photo = await evidence(report.photo_path);
         const png = Buffer.from(await photo.arrayBuffer());
         let output;
@@ -353,11 +363,17 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         } catch {
           throw new PilotError(502, 'VISION_UNAVAILABLE', 'Real analysis failed. Retry or review this photo manually.');
         }
+        if (action === 'preliminary') {
+          const saved = await send('/rest/v1/rpc/pilot_save_preliminary', {
+            p_report: report.id, p_token: analysisWriteToken, p_output: output,
+          });
+          return reply(201, saved);
+        }
         const [saved] = await send(rest('pilot_review_events', {}), { ...event, action: 'model', model_output: output });
         return reply(201, saved);
       }
       const { decision, category, note, duplicateOf } = data;
-      requireValue(['confirm', 'correct', 'dismiss', 'duplicate'].includes(decision) &&
+      requireValue(['confirm', 'correct', 'dismiss', 'duplicate', 'clear'].includes(decision) &&
         (['confirm', 'correct'].includes(decision) ? categories.includes(category) : !category) &&
         typeof note === 'string' && note.trim() && note.length <= 500 &&
         (decision === 'duplicate' ? validUuid.test(duplicateOf ?? '') && duplicateOf !== report.id : !duplicateOf),

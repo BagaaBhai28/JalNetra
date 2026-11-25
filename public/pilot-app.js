@@ -10,11 +10,14 @@ const store = 'jalnetra-pilot-session';
 const time = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 const labels = { foam: 'Foam', algae_like_growth: 'Algae-like growth', dumping: 'Waste dumping',
   'suspected-discharge': 'Suspected wastewater discharge', sewage: 'Sewage or drain overflow', other: 'Other concern',
-  confirm: 'Confirmed', correct: 'Corrected', dismiss: 'Dismissed', duplicate: 'Marked duplicate' };
+  confirm: 'Confirmed', correct: 'Corrected', dismiss: 'Dismissed', duplicate: 'Marked duplicate', clear: 'No visible issue' };
 let session;
 try { session = JSON.parse(sessionStorage.getItem(store)); } catch { /* A fresh sign-in is required. */ }
 let user, lakes = [], lake, role, listVersion = 0, refreshInFlight, visionConfigured;
 let reportPage = 0;
+let linkedReport;
+let conditions = [];
+let conditionsVersion = 0;
 let recoveryToken;
 let photoId = crypto.randomUUID(), concernId = crypto.randomUUID();
 const previews = new Set();
@@ -286,7 +289,7 @@ function reviewForm(report, candidates, version, suggestedCategory) {
   const block = el('form');
   const decision = el('select');
   decision.setAttribute('aria-label', 'Decision for ' + report.id);
-  for (const [value, name] of [['confirm', 'Confirm visible evidence'], ['correct', 'Correct category'], ['dismiss', 'Dismiss evidence'], ['duplicate', 'Mark as duplicate']]) {
+  for (const [value, name] of [['confirm', 'Confirm visible evidence'], ['correct', 'Correct category'], ['dismiss', 'Dismiss evidence'], ['clear', 'No visible issue in photo'], ['duplicate', 'Mark as duplicate']]) {
     decision.add(new Option(name, value));
   }
   const category = el('select');
@@ -305,7 +308,7 @@ function reviewForm(report, candidates, version, suggestedCategory) {
   function fields() {
     duplicate.hidden = decision.value !== 'duplicate';
     duplicate.required = !duplicate.hidden;
-    category.hidden = ['dismiss', 'duplicate'].includes(decision.value);
+    category.hidden = ['dismiss', 'duplicate', 'clear'].includes(decision.value);
     category.required = !category.hidden;
   }
   decision.addEventListener('change', fields);
@@ -336,9 +339,12 @@ function reportCard(report, reports, selected, canReview, version) {
   card.append(viewPhoto(report.id, 'Citizen photo from ' + zoneName(report.zone_id, selected), version));
   if (model) {
     const cues = model.detections?.map(item => labels[item.category] + ' — ' + item.cue);
-    card.append(el('p', 'Live vision · ' + (model.imageQuality === 'unclear' ? 'Image unclear' : cues?.join('; ') || 'No visible target signs')));
+    card.append(el('p', 'Preliminary photo assessment · ' + (model.imageQuality === 'unclear' ? 'Image unclear' : cues?.join('; ') || 'No visible target signs')));
   }
-  if (!canReview) return card;
+  if (!canReview) {
+    if (model?.detections?.length) card.append(linkConcernButton(report, model));
+    return card;
+  }
   if (visionConfigured && !model) {
     const analyze = el('button', 'Analyze photo'); analyze.type = 'button'; analyze.className = 'secondary';
     analyze.addEventListener('click', () => operate(analyze, async () => {
@@ -413,6 +419,10 @@ async function loadRecords() {
     const row = el('li');
     row.append(el('h3', labels[concern.category] + ' · ' + zoneName(concern.zone_id, selected)),
       el('p', concern.description), el('small', 'JalNetra reference ' + concern.id));
+    if (concern.report_id) {
+      row.append(el('p', 'Linked photo observation ' + concern.report_id),
+        viewPhoto(concern.report_id, 'Linked shoreline evidence', version));
+    }
     return row;
   }) : [el('li', concernData ? 'No concerns yet.' : 'Concerns could not load. Click Refresh to retry.')]));
   await hotspotTask;
@@ -421,6 +431,147 @@ function setObserved() {
   const now = new Date();
   $('pilot-observed').value = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
+const conditionState = {
+  verified: { title: 'Verified concern', rank: 3 },
+  pending: { title: 'Awaiting review', rank: 2 },
+  clear: { title: 'No visible issue in reviewed photo', rank: 1 },
+  unknown: { title: 'No recent information', rank: 0 },
+};
+const conditionMap = $('conditions-map');
+const conditionTiles = $('conditions-tiles');
+const conditionMarkers = $('conditions-markers');
+const conditionPanel = $('conditions-detail');
+let conditionPoints = [];
+new ResizeObserver(() => drawMap(conditionMap, conditionTiles, conditionPoints, conditionMarkers, 12, 42)).observe(conditionMap);
+
+function renderConditions() {
+  if ($('citizen-conditions').hidden) return;
+  const byLake = new Map();
+  for (const signal of conditions) {
+    if (!Object.hasOwn(conditionState, signal.state)) continue;
+    if (!byLake.has(signal.lake_id)) byLake.set(signal.lake_id, []);
+    byLake.get(signal.lake_id).push(signal);
+  }
+  conditionPoints = lakes.filter(item => item.center?.length === 2).map(item => ({
+    id: item.id, latitude: item.center[0], longitude: item.center[1],
+  }));
+  conditionMarkers.replaceChildren();
+  for (const point of conditionPoints) {
+    const item = lakes.find(entry => entry.id === point.id);
+    const state = (byLake.get(item.id) ?? []).reduce((best, signal) =>
+      conditionState[signal.state].rank > conditionState[best].rank ? signal.state : best, 'unknown');
+    const label = item.name + ' · ' + conditionState[state].title;
+    const button = el('button');
+    button.type = 'button';
+    button.className = 'marker conditions-marker';
+    button.dataset.mapId = item.id;
+    button.dataset.state = state;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(lake?.id === item.id));
+    button.addEventListener('click', () => {
+      lakeSelect.value = item.id;
+      chooseLake().then(() => conditionPanel.focus()).catch(error => msg(error.message, true));
+    });
+    conditionMarkers.append(button);
+  }
+  drawMap(conditionMap, conditionTiles, conditionPoints, conditionMarkers, 12, 42);
+  conditionPanel.replaceChildren();
+  if (!lake) return;
+  conditionPanel.tabIndex = -1;
+  conditionPanel.append(el('h3', lake.name));
+  const details = byLake.get(lake.id) ?? [];
+  if (!details.length) {
+    conditionPanel.append(el('p', 'No recent information for this lake.'));
+    return;
+  }
+  const list = el('ul');
+  details.sort((a, b) => conditionState[b.state].rank - conditionState[a.state].rank ||
+    Date.parse(b.observed_at) - Date.parse(a.observed_at));
+  for (const signal of details) {
+    const subject = signal.category ? ' · ' + labels[signal.category] : '';
+    list.append(el('li', zoneName(signal.zone_id) + ' · ' + conditionState[signal.state].title + subject +
+      ' · ' + time.format(new Date(signal.observed_at)) + ' IST'));
+  }
+  conditionPanel.append(list);
+}
+
+async function loadConditions() {
+  if ($('citizen-conditions').hidden) return;
+  const version = ++conditionsVersion;
+  try {
+    const result = await api('conditions');
+    if (version !== conditionsVersion) return;
+    conditions = result.signals;
+    renderConditions();
+  } catch {
+    if (version !== conditionsVersion) return;
+    conditionPanel.replaceChildren(el('p', 'Lake conditions could not load. Click Refresh map to retry.'));
+  }
+}
+
+$('conditions-refresh').addEventListener('click', event => operate(event.currentTarget, loadConditions));
+
+function clearLinkedReport() {
+  linkedReport = undefined;
+  $('pilot-linked-report').hidden = true;
+}
+$('pilot-concern-zone').addEventListener('change', event => {
+  if (linkedReport?.zone_id !== event.target.value) clearLinkedReport();
+});
+
+function linkConcernButton(report, model) {
+  const button = el('button', 'Raise concern from this photo');
+  button.type = 'button';
+  button.className = 'secondary';
+  button.addEventListener('click', () => {
+    if (lake?.id !== report.lake_id || role !== 'citizen') return;
+    linkedReport = report;
+    concernId = crypto.randomUUID();
+    $('pilot-concern-zone').value = report.zone_id;
+    $('pilot-concern-type').value = model.detections.some(item => item.category === 'dumping') ? 'dumping' : 'other';
+    const details = $('pilot-concern-text');
+    if (!details.value.trim()) {
+      details.value = model.detections.map(item => 'Possible ' + labels[item.category].toLowerCase() + ': ' + item.cue)
+        .join('\n').slice(0, details.maxLength);
+    }
+    const status = $('pilot-linked-report');
+    status.textContent = 'Linked photo observation ' + report.id + '. Review the description before submitting.';
+    status.hidden = false;
+    details.focus();
+  });
+  return button;
+}
+
+async function runPreliminary(report, selected) {
+  if (lake !== selected || role !== 'citizen') return;
+  const panel = $('pilot-preliminary');
+  panel.replaceChildren(el('h3', 'Preliminary photo assessment'), el('p', 'Analyzing your saved photo.'));
+  try {
+    const event = await api('preliminary', { reportId: report.id });
+    if (lake !== selected || role !== 'citizen') return;
+    const model = event.model_output;
+    const note = model.imageQuality === 'unclear' ? 'The photo is unclear. Try another photo with a closer view of the shoreline.' :
+      model.detections.length ? 'Possible visible concerns found. An operator can verify this assessment.' :
+        'No visible signs of foam, algae-like growth, or dumping were detected in this photo.';
+    panel.replaceChildren(el('h3', 'Preliminary photo assessment'), el('p', note));
+    if (model.detections.length) {
+      const list = el('ul');
+      for (const item of model.detections) list.append(el('li', labels[item.category] + ' · ' + item.cue));
+      panel.append(list, linkConcernButton(report, model));
+    }
+    panel.append(el('p', 'This image assessment cannot establish water quality or identify the source of an issue.'));
+  } catch {
+    if (lake !== selected || role !== 'citizen') return;
+    const retry = el('button', 'Retry photo analysis');
+    retry.className = 'secondary';
+    retry.type = 'button';
+    retry.addEventListener('click', () => runPreliminary(report, selected));
+    panel.replaceChildren(el('h3', 'Preliminary photo assessment'),
+      el('p', 'Your observation is saved. Photo analysis is temporarily unavailable.'), retry);
+  }
+}
+
 async function chooseLake() {
   lake = lakes.find(item => item.id === lakeSelect.value);
   role = user?.memberships.find(item => item.lake_id === lake?.id)?.role;
@@ -439,6 +590,10 @@ async function chooseLake() {
     $(id).replaceChildren(...(lake?.pilot_zones ?? []).map(zone => new Option(zone.name, zone.id)));
   }
   photoForm.reset(); concernForm.reset(); setObserved();
+  linkedReport = undefined;
+  $('pilot-linked-report').hidden = true;
+  $('pilot-preliminary').replaceChildren();
+  renderConditions();
   reportPage = 0;
   $('pilot-review-state').value = '';
   $('pilot-review-filter').hidden = !['operator', 'admin'].includes(role);
@@ -478,7 +633,9 @@ async function openWorkspace() {
   const initial = lakes.find(item => item.slug === requested) ??
     lakes.find(item => user.memberships.some(m => m.lake_id === item.id));
   if (initial) lakeSelect.value = initial.id;
-  await chooseLake();
+  const showConditions = entry !== 'operator' && allowedLakes.some(item => !reviewLakeIds.has(item.id));
+  $('citizen-conditions').hidden = !showConditions;
+  await Promise.all([chooseLake(), showConditions ? loadConditions() : undefined]);
 }
 
 function submitLogin(event) {
@@ -502,6 +659,9 @@ $('pilot-operator-login').addEventListener('submit', submitLogin);
 $('pilot-signout').addEventListener('click', () => operate($('pilot-signout'), async () => {
   try { await api('signout', {}); } finally {
     setSession(null); user = null; lake = null; role = null;
+    conditions = [];
+    ++conditionsVersion;
+    $('citizen-conditions').hidden = true;
     await loadRecords();
     $('pilot-workspace').hidden = true;
     $('pilot-auth').hidden = false;
@@ -553,18 +713,21 @@ photoForm.addEventListener('submit', event => {
     if (lake !== current) return;
     if (photoId === id) { photoForm.reset(); setObserved(); photoId = crypto.randomUUID(); }
     msg('Observation saved. Reference ' + report.id);
-    await loadRecords();
+    await Promise.all([runPreliminary(report, current), loadConditions()]);
+    if (lake === current) await loadRecords();
   });
 });
 concernForm.addEventListener('submit', event => {
   event.preventDefault();
   operate(event.submitter, async () => {
     const current = lake, id = concernId;
-    const concern = await api('concerns', { ...Object.fromEntries(new FormData(concernForm)), id, lake_id: current.id });
+    const concern = await api('concerns', {
+      ...Object.fromEntries(new FormData(concernForm)), id, lake_id: current.id, report_id: linkedReport?.id,
+    });
     if (lake !== current) return;
-    if (concernId === id) { concernForm.reset(); concernId = crypto.randomUUID(); }
-    msg('Concern saved. Reference ' + concern.id);
-    await loadRecords();
+    if (concernId === id) { concernForm.reset(); concernId = crypto.randomUUID(); clearLinkedReport(); }
+    msg('Concern saved for operator review. Reference ' + concern.id);
+    await Promise.all([loadRecords(), loadConditions()]);
   });
 });
 

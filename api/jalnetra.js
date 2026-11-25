@@ -45,12 +45,13 @@ export default {
     const route = url.pathname === '/api/jalnetra' ? url.searchParams.get('jalroute') : url.pathname.slice(5);
     if (!route?.startsWith('pilot/')) return hosted(request);
     let apiKey = process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY;
-    if (!apiKey && ['pilot/status', 'pilot/analyze'].includes(route)) {
+    if (!apiKey && ['pilot/status', 'pilot/analyze', 'pilot/preliminary'].includes(route)) {
       apiKey = await getVercelOidcToken().catch(() => undefined);
     }
     const pilot = createPilotHandler({
       url: process.env.SUPABASE_URL,
       publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+      analysisWriteToken: process.env.PILOT_ANALYSIS_WRITE_TOKEN,
       apiKey,
       model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
       gateway: !process.env.OPENAI_API_KEY,

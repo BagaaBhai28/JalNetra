@@ -287,3 +287,49 @@ test('pilot paginates the review queue and checks lake operator access for pendi
   assert.equal(data.reports.length, 25);
   assert.equal(data.hasMore, true);
 });
+
+test('citizen preliminary analysis saves verified provider output for their own photo', async () => {
+  const reportId = 'a1020000-0000-4000-8000-000000000001';
+  const person = 'a1020000-0000-4000-8000-000000000004';
+  const report = { id: reportId, lake_id: reportId, photo_path: person + '/photo.png' };
+  let actor = 'other-citizen', saved, visionCalls = 0;
+  const output = { imageQuality: 'usable', detections: [{ category: 'dumping', cue: 'Bottles beside the water' }] };
+  const handle = createPilotHandler({ ...settings, apiKey: 'test-key', model: 'test-model', analysisWriteToken: 'scoped-test-token',
+    async visionRequest() {
+      visionCalls++;
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(output) }] }] });
+    },
+    async request(url, options) {
+      if (url.pathname === '/auth/v1/user') return Response.json({ id: actor });
+      if (url.pathname === '/rest/v1/pilot_reports') return Response.json([report]);
+      if (url.pathname.startsWith('/storage/v1/object/authenticated/')) return new Response(Buffer.from([1, 2, 3]));
+      if (url.pathname === '/rest/v1/pilot_review_events') return Response.json(saved ? [saved] : []);
+      assert.equal(url.pathname, '/rest/v1/rpc/pilot_save_preliminary');
+      assert.deepEqual(JSON.parse(options.body), { p_report: reportId, p_token: 'scoped-test-token', p_output: output });
+      saved = { model_output: output };
+      return Response.json(saved);
+    },
+  });
+  const preliminary = () => handle(new Request(host + '/api/pilot/preliminary', {
+    method: 'POST', headers: { Authorization: 'Bearer demo.token.value', Origin: host },
+    body: JSON.stringify({ reportId }),
+  }));
+  assert.equal((await preliminary()).status, 403);
+  assert.equal(visionCalls, 0);
+  actor = person;
+  assert.equal((await preliminary()).status, 201);
+  assert.deepEqual(await (await preliminary()).json(), saved);
+  assert.equal(visionCalls, 1);
+});
+
+test('citizen conditions require sign-in and return aggregate lake signals', async () => {
+  const signals = [{ lake_id: 'lake', zone_id: 'sector', state: 'verified', category: 'foam', observed_at: '2026-11-26T10:00:00Z' }];
+  const handle = createPilotHandler({ ...settings, async request(url, options) {
+    assert.equal(url.pathname, '/rest/v1/rpc/pilot_lake_conditions');
+    assert.equal(options.headers.Authorization, 'Bearer demo.token.value');
+    return Response.json(signals);
+  } });
+  assert.equal((await handle(new Request(host + '/api/pilot/conditions'))).status, 401);
+  const response = await handle(new Request(host + '/api/pilot/conditions', { headers: { Authorization: 'Bearer demo.token.value' } }));
+  assert.deepEqual(await response.json(), { signals });
+});
