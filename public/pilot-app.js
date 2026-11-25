@@ -6,19 +6,23 @@ const notice = $('pilot-status');
 const lakeSelect = $('pilot-lake');
 const photoForm = $('pilot-photo-form');
 const concernForm = $('pilot-concern-form');
-const store = 'jalnetra-pilot-session';
+const operatorMode = new URLSearchParams(location.search).get('role') === 'operator' ||
+  new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery';
+const storage = operatorMode ? sessionStorage : localStorage;
+const store = operatorMode ? 'jalnetra-pilot-session' : 'jalnetra-guest-session';
 const time = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 const labels = { foam: 'Foam', algae_like_growth: 'Algae-like growth', dumping: 'Waste dumping',
   'suspected-discharge': 'Suspected wastewater discharge', sewage: 'Sewage or drain overflow', other: 'Other concern',
   confirm: 'Confirmed', correct: 'Corrected', dismiss: 'Dismissed', duplicate: 'Marked duplicate', clear: 'No visible issue' };
 let session;
-try { session = JSON.parse(sessionStorage.getItem(store)); } catch { /* A fresh sign-in is required. */ }
+try { session = JSON.parse(storage.getItem(store)); } catch { /* A fresh sign-in is required. */ }
 let user, lakes = [], lake, role, listVersion = 0, refreshInFlight, visionConfigured;
 let reportPage = 0;
 let linkedReport;
 let conditions = [];
 let conditionsVersion = 0;
 let recoveryToken;
+let guestSessionRequest;
 let photoId = crypto.randomUUID(), concernId = crypto.randomUUID();
 const previews = new Set();
 
@@ -33,8 +37,10 @@ function el(tag, text) {
 }
 function setSession(next) {
   session = next;
-  if (next) sessionStorage.setItem(store, JSON.stringify(next));
-  else sessionStorage.removeItem(store);
+  try {
+    if (next) storage.setItem(store, JSON.stringify(next));
+    else storage.removeItem(store);
+  } catch { /* Continue with the current page session when storage is unavailable. */ }
 }
 async function http(route, payload, token) {
   const headers = new Headers();
@@ -386,7 +392,7 @@ async function loadRecords() {
   $('pilot-hotspot-evidence').replaceChildren();
   const reports = $('pilot-reports'), concerns = $('pilot-concerns');
   if (!selected || !role) {
-    reports.replaceChildren(el('li', 'Join this lake to view your submissions.'));
+    reports.replaceChildren(el('li', operatorMode ? 'No lake selected.' : 'You have no reports for this lake yet.'));
     concerns.replaceChildren();
     return;
   }
@@ -580,10 +586,10 @@ async function chooseLake() {
   else url.searchParams.delete('lake');
   if (url.href !== location.href) history.replaceState(null, '', url);
   $('pilot-map-link').href = lake?.slug ? '/?lake=' + encodeURIComponent(lake.slug) : '/';
-  $('pilot-enroll').hidden = !lake || !!role;
-  $('pilot-intake').hidden = role !== 'citizen';
+  $('pilot-intake').hidden = operatorMode || !lake;
   $('pilot-admin').hidden = role !== 'admin';
-  $('pilot-role').textContent = (role ? 'Lake role � ' + role : 'Select a lake to join and report.') + ' � Account ID ' + user.id;
+  $('pilot-role').textContent = operatorMode ? (role ? 'Lake role � ' + role : 'Select an assigned lake.') + ' � Account ID ' + user.id : 'Choose a lake to view conditions or submit a report.';
+  $('pilot-signout').hidden = !operatorMode;
   $('pilot-report-scope').textContent = ['operator', 'admin'].includes(role) ?
     (visionConfigured ? 'Shared review queue' : 'Shared review queue � human review available') : 'Your latest submissions';
   for (const id of ['pilot-zone', 'pilot-concern-zone']) {
@@ -608,17 +614,67 @@ async function loadMembers(selected) {
   if (lake !== selected) return;
   $('pilot-member-list').replaceChildren(...members.map(member => el('li', member.user_id + ' � ' + member.role)));
 }
+function activeDemoId() {
+  const requested = new URLSearchParams(location.search).get('demoRun');
+  if (requested) return requested;
+  try { return JSON.parse(localStorage.getItem('jalnetra-operator-demo'))?.id; } catch { return undefined; }
+}
+
+async function loadOperatorDemo() {
+  if (!operatorMode || !session) return;
+  const panel = $('operator-demo-content');
+  const id = activeDemoId();
+  $('operator-demo-concern').hidden = false;
+  panel.replaceChildren(el('p', id ? 'Loading the simulated concern.' : 'Send a demo concern below the map on the homepage, then refresh here.'));
+  if (!id) return;
+  try {
+    const { concern } = await api('demo-run?id=' + encodeURIComponent(id));
+    renderOperatorDemo(concern);
+  } catch (error) {
+    panel.replaceChildren(el('p', error.message));
+  }
+}
+
+function renderOperatorDemo(concern) {
+  const panel = $('operator-demo-content');
+  const photo = el('img');
+  photo.src = concern.photoUrl;
+  photo.alt = 'Simulated shoreline evidence';
+  const state = concern.confirmedAt ? 'Operator confirmed (demo)' : 'Awaiting operator review (demo)';
+  panel.replaceChildren(el('h3', concern.title), el('p', concern.lake + ' � ' + concern.sector),
+    el('p', state + ' � ' + time.format(new Date(concern.createdAt)) + ' IST'),
+    photo, el('p', 'Sample photo assessment: ' + concern.cue));
+  const action = el('button', concern.confirmedAt ? 'Download demo complaint' : 'Confirm demo concern');
+  action.type = 'button';
+  action.className = 'secondary';
+  action.addEventListener('click', () => operate(action, async () => {
+    if (!concern.confirmedAt) {
+      const result = await api('demo-run', { id: concern.id });
+      renderOperatorDemo(result.concern);
+      return;
+    }
+    const draft = ['DEMONSTRATION ONLY', 'Example complaint for civic review', concern.lake + ' � ' + concern.sector,
+      concern.title, 'Visible cue: ' + concern.cue, 'Demo reference ' + concern.id].join('\n');
+    downloadFile(new Blob([draft], { type: 'text/plain;charset=utf-8' }), 'jalnetra-demo-complaint.txt');
+  }));
+  panel.append(action);
+}
+
+$('refresh-demo-concern').addEventListener('click', event => operate(event.currentTarget, loadOperatorDemo));
+
 async function openWorkspace() {
-  const [account, catalog, status] = await Promise.all([api('account'), api('catalog'), api('status')]);
+  const [account, catalog, status] = await Promise.all([
+    session ? api('account') : Promise.resolve({ memberships: [] }), api('catalog'), api('status'),
+  ]);
   const params = new URLSearchParams(location.search);
-  const entry = params.get('role');
+  const entry = operatorMode ? 'operator' : 'citizen';
   const reviewLakeIds = new Set(account.memberships.filter(item =>
     item.role === 'operator' || item.role === 'admin').map(item => item.lake_id));
   const allowedLakes = catalog.lakes.filter(item => entry === 'operator' ? reviewLakeIds.has(item.id) :
     entry === 'citizen' ? !reviewLakeIds.has(item.id) : true);
   if (!allowedLakes.length && entry === 'operator') {
     setSession(null);
-    throw new Error('This account has no assigned operator role. Use Citizen sign in or contact a lake administrator.');
+    throw new Error('This account has no assigned operator role. Use guest reporting or contact a lake administrator.');
   }
   if (!allowedLakes.length && entry === 'citizen' && reviewLakeIds.size) {
     setSession(null);
@@ -627,7 +683,7 @@ async function openWorkspace() {
   user = account; lakes = allowedLakes; visionConfigured = status.visionConfigured;
   $('pilot-auth').hidden = true;
   $('pilot-workspace').hidden = false;
-  $('pilot-account').textContent = user.email;
+  $('pilot-account').textContent = operatorMode ? user.email : 'Citizen reporting';
   const requested = params.get('lake');
   lakeSelect.replaceChildren(...lakes.map(item => new Option(item.name, item.id)));
   const initial = lakes.find(item => item.slug === requested) ??
@@ -635,7 +691,7 @@ async function openWorkspace() {
   if (initial) lakeSelect.value = initial.id;
   const showConditions = entry !== 'operator' && allowedLakes.some(item => !reviewLakeIds.has(item.id));
   $('citizen-conditions').hidden = !showConditions;
-  await Promise.all([chooseLake(), showConditions ? loadConditions() : undefined]);
+  await Promise.all([chooseLake(), showConditions ? loadConditions() : loadOperatorDemo()]);
 }
 
 function submitLogin(event) {
@@ -646,22 +702,13 @@ function submitLogin(event) {
     const payload = Object.fromEntries(new FormData(event.target));
     const auth = await decode(await http(button.value, payload));
     event.target.reset();
-    if (button.value === 'signup') {
-      $('citizen-signup').open = false;
-      $('pilot-email').value = payload.email.trim();
-      $('pilot-password').focus();
-      return msg(auth.message);
-    }
     const url = new URL(location.href);
-    url.searchParams.set('role', event.target.id === 'pilot-operator-login' ? 'operator' : 'citizen');
+    url.searchParams.set('role', 'operator');
     history.replaceState(null, '', url);
     setSession(auth);
     await openWorkspace();
   });
 }
-$('pilot-login').addEventListener('submit', submitLogin);
-$('pilot-signup').addEventListener('submit', submitLogin);
-if (location.hash === '#citizen-signup') $('citizen-signup').open = true;
 $('pilot-operator-login').addEventListener('submit', submitLogin);
 $('pilot-signout').addEventListener('click', () => operate($('pilot-signout'), async () => {
   try { await api('signout', {}); } finally {
@@ -669,16 +716,26 @@ $('pilot-signout').addEventListener('click', () => operate($('pilot-signout'), a
     conditions = [];
     ++conditionsVersion;
     $('citizen-conditions').hidden = true;
+    $('operator-demo-concern').hidden = true;
+    $('operator-demo-content').replaceChildren();
     await loadRecords();
     $('pilot-workspace').hidden = true;
     $('pilot-auth').hidden = false;
   }
 }));
-$('pilot-enroll').addEventListener('click', () => operate($('pilot-enroll'), async () => {
-  await api('enroll', { lakeId: lake.id });
-  user = await api('account');
-  await chooseLake();
-}));
+async function authorizeGuestReport(selected) {
+  if (operatorMode || !selected) throw new Error('Choose a lake to submit a report.');
+  if (!session) {
+    guestSessionRequest ??= http('guest', {}).then(decode).then(setSession)
+      .finally(() => { guestSessionRequest = undefined; });
+    await guestSessionRequest;
+  }
+  if (!user.memberships.some(item => item.lake_id === selected.id && item.role === 'citizen')) {
+    await api('enroll', { lakeId: selected.id });
+    user = await api('account');
+  }
+  if (lake === selected) role = user.memberships.find(item => item.lake_id === selected.id)?.role;
+}
 lakeSelect.addEventListener('change', () => chooseLake().catch(error => msg(error.message, true)));
 $('pilot-reload').addEventListener('click', () => operate($('pilot-reload'), loadRecords));
 $('pilot-review-state').addEventListener('change', () => {
@@ -716,6 +773,7 @@ photoForm.addEventListener('submit', event => {
     payload.set('pixels', photo.pixels, 'normalized.rgb');
     payload.set('width', photo.width);
     payload.set('height', photo.height);
+    await authorizeGuestReport(current);
     const report = await api('upload', payload);
     if (lake !== current) return;
     if (photoId === id) { photoForm.reset(); setObserved(); photoId = crypto.randomUUID(); }
@@ -728,9 +786,9 @@ concernForm.addEventListener('submit', event => {
   event.preventDefault();
   operate(event.submitter, async () => {
     const current = lake, id = concernId;
-    const concern = await api('concerns', {
-      ...Object.fromEntries(new FormData(concernForm)), id, lake_id: current.id, report_id: linkedReport?.id,
-    });
+    const payload = { ...Object.fromEntries(new FormData(concernForm)), id, lake_id: current.id, report_id: linkedReport?.id };
+    await authorizeGuestReport(current);
+    const concern = await api('concerns', payload);
     if (lake !== current) return;
     if (concernId === id) { concernForm.reset(); concernId = crypto.randomUUID(); clearLinkedReport(); }
     msg('Concern saved for operator review. Reference ' + concern.id);
@@ -768,7 +826,18 @@ if (authFragment.has('access_token') || authFragment.has('error_description')) {
     recoveryToken = authFragment.get('access_token');
     $('pilot-auth').hidden = true;
     $('pilot-reset').hidden = false;
-  } else if (authFragment.has('access_token')) msg('Email confirmed. Sign in to continue.');
+  } else if (authFragment.has('access_token')) msg('Email confirmed. You can report as a guest.');
   else msg('The confirmation link could not be used. Request a new account email or sign in if already confirmed.', true);
 }
-if (session) openWorkspace().catch(error => { setSession(null); msg(error.message, true); });
+if (!recoveryToken) {
+  if (operatorMode && !session) $('pilot-auth').hidden = false;
+  else openWorkspace().catch(async error => {
+    const hadSession = Boolean(session);
+    setSession(null);
+    if (!operatorMode && hadSession) {
+      try { await openWorkspace(); return; } catch { /* Show a retry message below. */ }
+    }
+    if (operatorMode) $('pilot-auth').hidden = false;
+    msg(error.message, true);
+  });
+}
