@@ -2,10 +2,11 @@
 
 [Repository home](../README.md) · [Architecture](ARCHITECTURE.md) · [Schema](../database/schema.sql)
 
-This is the contract for the planned local prototype. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+This is the contract for the local prototype. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|
+| `GET /api/status` | None | `200` with the active mode and available offline samples. |
 | `GET /api/zones` | None | `200` with zone IDs, names, optional coordinates, and marker positions. |
 | `POST /api/reports` | Multipart fields listed below | `201` for a newly saved report. `200` for a repeat request that returns its existing report. |
 | `GET /api/reports` | Optional `zoneId` filter | `200` with recent reports and status. Use a bounded result set. |
@@ -13,7 +14,11 @@ This is the contract for the planned local prototype. All routes are scoped to t
 | `GET /api/reports/:id/photo` | Report ID | `200` with the normalized image and correct content type. |
 | `POST /api/reports/:id/retry` | Report ID | `200` with the updated result or `202` with an already-running attempt. |
 | `GET /api/hotspots` | None | `200` with zones and their current per-category evidence. |
-| `POST /api/complaints` | JSON `zoneId`, `category` | `201` with draft ID, recipient placeholder, generated text, and evidence IDs. |
+| `POST /api/complaints` | JSON `zoneId`, `category` | `201` with a new draft or `200` with the saved draft for identical evidence. |
+| `GET /api/complaints/:id` | Draft ID | `200` with the saved draft and evidence references. |
+| `PATCH /api/complaints/:id` | JSON `recipient`, `draftText` | `200` with saved edits and unchanged evidence references. |
+| `GET /api/complaints/:id/export` | Draft ID | `200` with a downloadable text draft. |
+| `POST /api/demo/reset` | JSON object in rehearsal mode | `200` after resetting the in-memory rehearsal and seeding one Watch report. |
 
 Use `400` for invalid fields, `404` for records absent from the active dataset, `409` for a draft whose evidence no longer qualifies or reuse of a request ID with different content, `413` for oversized files, and `415` for unsupported files. A vision failure after a successful save returns the saved report with `needs_review` and a reason. Use a predictable error shape such as `{"error":{"code":"INVALID_ZONE","message":"Choose a listed shoreline zone."}}`.
 
@@ -21,7 +26,8 @@ Use `400` for invalid fields, `404` for records absent from the active dataset, 
 
 | Field | Rule |
 |---|---|
-| `photo` | One JPEG or PNG, at most 5 MB. Decode it on the server before storing. |
+| `photo` | Raw RGB from a JPEG or PNG decoded in the browser. The browser accepts originals up to 5 MB. |
+| `photoWidth`, `photoHeight` | Integer dimensions from 1 to 1,200. The server checks three RGB bytes per pixel and encodes a metadata-free PNG. |
 | `zoneId` | Existing zone ID. |
 | `observedAt` | Required timestamp with an offset. Reject future times. |
 | `requestId` | Stable, unique client-generated ID for the submission and its retries. |

@@ -10,7 +10,7 @@ Lake observations often arrive as isolated photos or messages. To act on them, a
 
 1. Select **North Inlet**, **East Shore**, or **South Bank** on Demo Lake. Zone coordinates are approximate if a real pilot map is configured. The fictional map may omit them.
 2. Submit a JPEG or PNG up to 5 MB. Record observation time separately from submission time. Store UTC and show IST to the demo audience. Optional pH and temperature are marked **Citizen-reported** and excluded from hotspot rules.
-3. Validate, decode, and re-encode the photo. Persist a report before calling the model. Repeated submission of the same request ID returns the existing report.
+3. Decode and resize the photo in the browser. The server checks the pixel payload, encodes a PNG, and persists the report before analysis. Repeated submission of the same request ID and payload returns the existing report.
 4. Ask the model for image quality and visible cues from the categories **foam**, **algae-like growth**, and **dumping**. A usable photo can return multiple categories or no target signs. Invalid responses and unclear photos enter **Needs review**.
 5. Recompute active evidence on dashboard load and when drafting. For each data mode, lake, zone and category, count one accepted observation per normalized image fingerprint, using observation times from the previous 48 hours through the current time. Choose the most recent eligible observation as the representative for a duplicate fingerprint. Break equal-time ties by report ID to keep output stable.
 6. Open the highest-priority marker for a zone and select a category. The detail panel lists its qualifying reports, times, thumbnails, and model cues. Older or unclear reports remain available in history.
@@ -37,7 +37,7 @@ flowchart TD
     C -->|No| D["Explain why drafting is unavailable"]
     C -->|Yes| E["Save draft and evidence references"]
     E --> F["Operator reviews text and recipient"]
-    F --> G["Copy or download the draft"]
+    F --> G["Download the draft"]
 ```
 
 Each draft includes the lake and zone, approximate location if available, observed category, count, evidence IDs and timestamps, and a request for inspection. It can include citizen-reported readings and attachment names. Keep the draft factual. For example, use “Two photos show visible foam near North Inlet” and ask for inspection of the area.

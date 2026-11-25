@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    UI["Browser: report, map and draft views"] --> API["Express application"]
+    UI["Browser: report, map and draft views"] --> API["Node.js HTTP application"]
     API --> REPORT["Report intake and analysis orchestration"]
     API --> HOTSPOT["Hotspot aggregation"]
     API --> DRAFT["Complaint draft service"]
@@ -14,7 +14,7 @@ flowchart TD
     HOTSPOT --> STORE
     DRAFT --> HOTSPOT
     DRAFT --> STORE
-    REPORT --> PHOTOS[("Local normalized photos")]
+    REPORT --> PHOTOS[("PNG evidence in SQLite")]
     REPORT --> ADAPTER["Vision adapter"]
     ADAPTER --> LIVE["Live vision model"]
     ADAPTER --> REPLAY["Offline response fixtures"]
@@ -23,19 +23,19 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | Browser | Render the form, bundled map, status labels, evidence panel, history, and draft editor. |
-| Express API | Serve the frontend and API from the same origin. Validate requests, identify the active data mode, and return consistent errors. |
+| HTTP API | Serve the frontend and API from the same origin. Validate requests, identify the active data mode, and return consistent errors. |
 | Intake | Validate format, byte limit and image dimensions. Strip metadata, save only the normalized image, and fingerprint it for evidence deduplication. |
 | Vision adapter | Give live and replay modes one result contract. Validate labels and cues against the allowlist and time out the live request at about 12 seconds. |
 | Hotspot service | Compute eligible evidence and group status from the persisted facts. The dashboard and complaint service share the same calculation. |
 | Draft service | Recheck eligibility and save the draft with evidence report IDs in one transaction. |
-| Persistence | SQLite stores zones, report and analysis history, and complaint drafts. Normalized photos are kept in a local folder and served by report ID. |
+| Persistence | SQLite stores zones, report and analysis history, and complaint drafts. Normalized PNG bytes are stored in SQLite and served by report ID. |
 
 ## Upload and analysis sequence
 
 ```mermaid
 sequenceDiagram
     actor Citizen
-    participant API as Express API
+    participant API as HTTP API
     participant Store as SQLite
     participant Vision as Vision adapter
     Citizen->>API: Submit photo, zone and request ID
@@ -52,7 +52,7 @@ sequenceDiagram
     API-->>Citizen: Return saved report and result
 ```
 
-**Working on retries.** Uniquely constrain request IDs per data mode. Write normalized files under generated names, clean up temporary files on failed intake, and return an existing report for a repeat submission. Use a per-report attempt record with an expiry for model calls. Claim a retry atomically for one caller. A late response from an expired attempt must never replace the outcome of a fresher attempt.
+**Working on retries.** Uniquely constrain request IDs per data mode. Store report data and PNG bytes in one transaction and return the existing report for a repeat submission. Use a per-report attempt record with an expiry for model calls. Claim a retry atomically for one caller. A late response from an expired attempt must never replace the outcome of a fresher attempt.
 
 ## Data relationships
 
@@ -72,7 +72,7 @@ A report points to its current analysis attempt. Earlier attempts remain auditab
 
 | Concern | Prototype decision |
 |---|---|
-| Presentation | One local process on the presentation laptop. The map and fixtures ship with the build. |
+| Presentation | One local process on the presentation laptop. The map and fixtures ship with the build. Rehearsal uses a separate in-memory database. |
 | Credentials | The vision key is supplied through an environment variable and stays on the server. |
 | Model inputs | Send normalized pixels only. Keep citizen notes, readings and locations local during analysis. |
 | Replay | Display the source and use demo-only data. Unknown replay images should return a clear unsupported-fixture outcome. |

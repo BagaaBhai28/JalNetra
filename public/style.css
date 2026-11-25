@@ -20,6 +20,9 @@ main { width: min(calc(100% - 40px), 1120px); margin: 0 auto; padding-bottom: 36
 h1 { font-family: Georgia, serif; font-weight: 600; letter-spacing: -.045em; font-size: clamp(2rem, 5vw, 3.45rem); margin: 0; line-height: 1.08; }
 p { margin: 0; }
 .intro p:last-child { margin-top: 8px; color: var(--muted); }
+.rehearsal { margin: 0 0 14px; padding: 9px 12px; background: #e5eee1; border-radius: 8px; }
+.rehearsal .secondary { margin: 0 0 4px; }
+.rehearsal p { color: var(--muted); font-size: .84rem; }
 .workspace { display: grid; grid-template-columns: 1.22fr 1fr; gap: 16px; align-items: start; }
 .card { min-width: 0; overflow: hidden; background: var(--white); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 8px 25px #19372c09; }
 .card-head { padding: 15px 19px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); }

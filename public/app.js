@@ -11,6 +11,7 @@ const reports = document.querySelector('#report-list');
 const evidenceContent = document.querySelector('#evidence-content');
 const hotspotLabels = { none: 'No active evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
 let dashboard;
+let zonesLoaded = false;
 const draftDialog = document.querySelector('#draft-dialog');
 const draftForm = document.querySelector('#draft-form');
 const draftStatus = document.querySelector('#draft-status');
@@ -19,6 +20,7 @@ const draftText = document.querySelector('#draft-text');
 const saveDraftButton = document.querySelector('#save-draft');
 const downloadDraft = document.querySelector('#download-draft');
 let currentDraft;
+const rehearsalButton = document.querySelector('#restart-rehearsal');
 let requestId = crypto.randomUUID();
 let previewUrl;
 let selectedFile;
@@ -244,6 +246,7 @@ async function loadZones() {
     });
     markers.append(marker);
   }
+  zonesLoaded = true;
   highlightZone();
 }
 
@@ -363,11 +366,35 @@ sampleSelect.addEventListener('change', async () => {
 async function loadMode() {
   const mode = await getJson('/api/status');
   document.querySelector('#app-mode').lastChild.textContent =
-    mode.mode === 'live' ? ' Live vision' : ' Offline demo';
+    mode.mode === 'live' ? ' Live vision' : mode.rehearsal ? ' Demo rehearsal' : ' Offline demo';
+  document.querySelector('#rehearsal-tools').hidden = !mode.rehearsal;
   samples = mode.samples;
   sampleControl.hidden = samples.length === 0;
   for (const sample of samples) sampleSelect.add(new Option(sample.title, sample.id));
 }
+
+rehearsalButton.addEventListener('click', async () => {
+  const feedback = document.querySelector('#rehearsal-status');
+  if (!zonesLoaded) {
+    feedback.textContent = 'Wait for the shoreline zones to load before starting the rehearsal.';
+    return;
+  }
+  rehearsalButton.disabled = true;
+  try {
+    await getJson('/api/demo/reset', jsonRequest('POST', {}));
+    currentDraft = undefined;
+    if (draftDialog.open) draftDialog.close();
+    rehearsalButton.textContent = 'Restart rehearsal';
+    feedback.textContent = 'North Inlet is on Watch. Select “Foam from a second view” and save it at the same zone.';
+    zone.value = 'north-inlet';
+    zone.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.all([loadHistory(), loadHotspots()]);
+  } catch (error) {
+    feedback.textContent = error.message;
+  } finally {
+    rehearsalButton.disabled = false;
+  }
+});
 
 form.addEventListener('submit', async event => {
   event.preventDefault();

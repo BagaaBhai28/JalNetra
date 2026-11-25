@@ -8,7 +8,7 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — Report intake, vision analysis, hotspot mapping, and complaint drafting run locally. The offline mode uses labelled sample images with simulated results.
+**Current status** — The local prototype supports report intake, vision analysis, hotspot mapping, complaint drafting, and an isolated rehearsal mode. Offline samples show simulated outcomes.
 
 ## Run the prototype
 
@@ -20,7 +20,19 @@ node src/server.js
 
 Open `http://127.0.0.1:3000`. Select a shoreline zone, add a JPEG or PNG, and save the observation. The local demo keeps the latest observations in view and saves photos and report IDs in `data/jalnetra.sqlite`. Select a sample from **Offline demo images** to see one of the labelled analysis outcomes.
 
-Run the intake regression check with `node --test`. It exercises the request handler and a real SQLite database, including reopening the database.
+Run `node --test` to verify the report, vision, hotspot, complaint, and rehearsal paths. The tests use SQLite and simulated or mocked vision responses.
+
+### Rehearse the complete demo
+
+```bash
+node src/server.js --rehearsal
+```
+
+Open `http://127.0.0.1:3000` and click **Start rehearsal**. North Inlet begins with one matching foam observation and a **Watch** status. Select **Foam from a second view** in **Offline demo images**, then save it at North Inlet. Open the **Priority hotspot** to review both photos, generate a civic complaint draft, and download it. Submit **Obscured view** to show the review path. **Restart rehearsal** clears only the in-memory rehearsal session and restores the first observation. You can run the entire sequence offline.
+
+### Enable live vision
+
+Set `JALNETRA_MODE=live`, `OPENAI_API_KEY`, and `JALNETRA_VISION_MODEL` in the shell before running `node src/server.js`. Use an image-capable Responses API model that supports structured outputs. The server sends only normalized image data and the vision prompt. Reports and drafts from live mode are kept separate from demo data. The default is offline mode, and `--rehearsal` always uses offline samples.
 
 ## What the project solves
 
@@ -102,7 +114,7 @@ flowchart TD
     C -->|No| D["Explain why drafting is unavailable"]
     C -->|Yes| E["Save draft and evidence references"]
     E --> F["Operator reviews text and recipient"]
-    F --> G["Copy or download the draft"]
+    F --> G["Download the draft"]
 ```
 
 Each draft includes the lake and zone, approximate location if available, observed category, count, evidence IDs and timestamps, and a request for inspection. It can include citizen-reported readings and attachment names. Keep the draft factual. For example, use “Two photos show visible foam near North Inlet” and ask for inspection of the area.
@@ -193,10 +205,11 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-Zone listing, report intake, history, and photo retrieval are implemented. Retry, hotspot, and complaint routes are implemented. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. Retry, hotspot, and complaint routes are implemented. The rehearsal reset is available only in the isolated in-memory mode. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|
+| `GET /api/status` | None | `200` with the active mode and available offline samples. |
 | `GET /api/zones` | None | `200` with zone IDs, names, optional coordinates, and marker positions. |
 | `POST /api/reports` | Multipart fields listed below | `201` for a newly saved report. `200` for a repeat request that returns its existing report. |
 | `GET /api/reports` | Optional `zoneId` filter | `200` with recent reports and status. Use a bounded result set. |
@@ -208,6 +221,7 @@ Zone listing, report intake, history, and photo retrieval are implemented. Retry
 | `GET /api/complaints/:id` | Draft ID | `200` with the saved draft and its evidence. |
 | `PATCH /api/complaints/:id` | JSON `recipient`, `draftText` | `200` with saved edits and the original evidence. |
 | `GET /api/complaints/:id/export` | Draft ID | `200` with a downloadable text file. |
+| `POST /api/demo/reset` | JSON object in rehearsal mode | `200` after clearing the rehearsal database and seeding one Watch observation. |
 
 Use `400` for invalid fields, `404` for records absent from the active dataset, `409` for a draft whose evidence no longer qualifies or reuse of a request ID with different content, `413` for oversized files, and `415` for unsupported files. A vision failure after a successful save returns the saved report with `needs_review` and a reason. Use a predictable error shape such as `{"error":{"code":"INVALID_ZONE","message":"Choose a listed shoreline zone."}}`.
 

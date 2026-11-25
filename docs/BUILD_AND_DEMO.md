@@ -28,6 +28,12 @@ If the build is running late, prioritise photo intake, the bundled zone map, evi
 - [ ] Eligible drafting includes the correct source report IDs and timestamps. An ineligible draft request gets a clear rejection.
 - [ ] Replay works with Wi-Fi off and cannot affect the live dataset.
 
+## Run a rehearsal
+
+Start with `node src/server.js --rehearsal` and open `http://127.0.0.1:3000`. Click **Start rehearsal**, submit **Foam from a second view** at North Inlet, and export the draft from the hotspot. Submit **Obscured view** to exercise review. **Restart rehearsal** clears only the in-memory scenario.
+
+Run the automated suite with `node --test`.
+
 ## Three-minute demo
 
 | Time | Action |

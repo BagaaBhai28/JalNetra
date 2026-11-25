@@ -8,6 +8,7 @@ import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
 import { claimAttempt, runAttempt, transact } from './analysis.js';
 import { hotspotDashboard } from './hotspots.js';
 import { createDraft, exportDraft, getDraft, updateDraft } from './complaints.js';
+import { resetRehearsal } from './rehearsal.js';
 import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList, categories } from './vision.js';
 
 const zones = [
@@ -217,10 +218,20 @@ function saveReport(db, report, mode) {
 }
 
 export function createApp({
-  dbPath = resolve('data', 'jalnetra.sqlite'), vision = null, timeoutMs = 12000,
+  dbPath = resolve('data', 'jalnetra.sqlite'), vision = null, timeoutMs = 12000, rehearsal = false,
 } = {}) {
   const mode = vision?.source === 'live_model' ? 'live' : 'demo';
-  const db = openDatabase(dbPath);
+  if (rehearsal && vision?.source !== 'simulated') throw new Error('Rehearsal requires offline vision samples.');
+  const db = openDatabase(rehearsal ? ':memory:' : dbPath);
+  let activeAnalyses = 0;
+  async function withAnalysis(run) {
+    activeAnalyses++;
+    try {
+      return await run();
+    } finally {
+      activeAnalyses--;
+    }
+  }
   const joined = `FROM report r JOIN zone z ON z.id = r.zone_id
     LEFT JOIN analysis_attempt a ON a.report_id = r.id AND a.attempt = r.current_attempt`;
   const find = db.prepare(`SELECT ${reportFields} ${joined} WHERE r.id = ? AND r.data_mode = ?`);
@@ -241,7 +252,13 @@ export function createApp({
         return respond(res, 200, readFileSync(new URL('../public/' + file, import.meta.url)), type);
       }
       if (req.method === 'GET' && pathname === '/api/status') {
-        return respond(res, 200, { mode, visionSource: vision?.source ?? null, samples: mode === 'demo' ? sampleList : [] });
+        return respond(res, 200, { mode, rehearsal, visionSource: vision?.source ?? null, samples: mode === 'demo' ? sampleList : [] });
+      }
+      if (req.method === 'POST' && rehearsal && pathname === '/api/demo/reset') {
+        await parseJson(req);
+        if (activeAnalyses) throw new InputError(409, 'ANALYSIS_IN_PROGRESS', 'Wait for analysis to finish before restarting the rehearsal.');
+        const seededReportId = await withAnalysis(() => resetRehearsal(db, vision, timeoutMs, saveReport));
+        return respond(res, 200, { seededReportId });
       }
       if (req.method === 'GET' && mode === 'demo' && pathname.startsWith('/api/demo/samples/')) {
         const sample = getSample(pathname.slice('/api/demo/samples/'.length));
@@ -264,7 +281,7 @@ export function createApp({
           const result = saveReport(db, report, mode);
           return { result, attempt: result.created ? claimAttempt(db, result, vision, timeoutMs) : null };
         });
-        await runAttempt(db, attempt, vision, timeoutMs);
+        await withAnalysis(() => runAttempt(db, attempt, vision, timeoutMs));
         return respond(res, result.created ? 201 : 200, reportView(db, find.get(result.id, mode), vision));
       }
       if (req.method === 'POST' && pathname === '/api/complaints') {
@@ -309,7 +326,7 @@ export function createApp({
         }
         if (report && req.method === 'POST' && action === 'retry' && vision) {
           const attempt = transact(db, () => claimAttempt(db, report, vision, timeoutMs));
-          await runAttempt(db, attempt, vision, timeoutMs);
+          await withAnalysis(() => runAttempt(db, attempt, vision, timeoutMs));
           return respond(res, attempt?.busy ? 202 : 200, reportView(db, find.get(id, mode), vision));
         }
       }
@@ -328,9 +345,10 @@ export function createApp({
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT || '3000');
-  const vision = process.env.JALNETRA_MODE === 'live' ? createOpenAiVision({
+  const rehearsal = process.argv.includes('--rehearsal');
+  const vision = !rehearsal && process.env.JALNETRA_MODE === 'live' ? createOpenAiVision({
     apiKey: process.env.OPENAI_API_KEY, model: process.env.JALNETRA_VISION_MODEL,
   }) : createReplayVision();
-  createApp({ vision }).listen(port, '127.0.0.1', () => console.log('JalNetra is running at http://127.0.0.1:' + port));
+  createApp({ vision, rehearsal }).listen(port, '127.0.0.1', () => console.log('JalNetra is running at http://127.0.0.1:' + port));
 }
 
