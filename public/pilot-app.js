@@ -118,7 +118,7 @@ function viewPhoto(id, title, version) {
 }
 
 function readingText(ph, temperature) {
-  return [ph != null ? 'pH ' + ph : '', temperature != null ? temperature + ' °C' : ''].filter(Boolean).join(' · ');
+  return [ph != null ? 'pH ' + ph : '', temperature != null ? temperature + ' �C' : ''].filter(Boolean).join(' � ');
 }
 
 function complaintButton(lakeId, zoneId, category, version) {
@@ -161,8 +161,8 @@ $('pilot-complaint-form').addEventListener('submit', event => {
     field.reportValidity();
     return;
   }
-  const text = ['DRAFT — review before filing.', 'To: ' + recipient, '', body, '', 'Evidence references',
-    ...currentComplaint.evidence.map(report => report.id + ' — ' + report.observedAt),
+  const text = ['DRAFT - review before filing.', 'To: ' + recipient, '', body, '', 'Evidence references',
+    ...currentComplaint.evidence.map(report => report.id + ' - ' + report.observedAt),
   ].join('\n');
   downloadFile(new Blob([text], { type: 'text/plain;charset=utf-8' }), 'jalnetra-complaint-draft.txt');
 });
@@ -210,9 +210,9 @@ $('pilot-export-evidence').addEventListener('click', async event => {
       image.src = url;
       image.width = 640;
       image.alt = 'Shoreline evidence from report ' + report.id;
-      const caption = report.id + ' · ' + time.format(new Date(report.observedAt)) + ' IST';
+      const caption = report.id + ' � ' + time.format(new Date(report.observedAt)) + ' IST';
       const readings = readingText(report.ph, report.temperatureC);
-      figure.append(image, el('figcaption', caption + (readings ? ' · Citizen-reported ' + readings : '')));
+      figure.append(image, el('figcaption', caption + (readings ? ' � Citizen-reported ' + readings : '')));
       file.body.append(figure);
     }
     downloadFile(new Blob(['<!doctype html>\n', file.documentElement.outerHTML],
@@ -246,7 +246,7 @@ function renderHotspots(selected, groups, version) {
     if (!categories.length) panel.append(el('p', hotspotStatus.none));
     for (const group of categories) {
       const section = el('section');
-      section.append(el('h4', labels[group.category] + ' · ' + hotspotStatus[group.status]),
+      section.append(el('h4', labels[group.category] + ' � ' + hotspotStatus[group.status]),
         el('p', group.evidence.length + (group.evidence.length === 1 ? ' independent reporter' : ' independent reporters')));
       const evidence = el('ul');
       evidence.className = 'pilot-records';
@@ -254,7 +254,7 @@ function renderHotspots(selected, groups, version) {
         const row = el('li');
         row.append(el('p', time.format(new Date(report.observedAt)) + ' IST'), el('small', 'JalNetra reference ' + report.id));
         const readings = readingText(report.ph, report.temperatureC);
-        if (readings) row.append(el('p', 'Citizen-reported · ' + readings));
+        if (readings) row.append(el('p', 'Citizen-reported � ' + readings));
         row.append(viewPhoto(report.id, 'Citizen photo from ' + zone.name, version));
         evidence.append(row);
       }
@@ -266,7 +266,7 @@ function renderHotspots(selected, groups, version) {
   for (const zone of zones) {
     const matching = groups.filter(group => group.zoneId === zone.id);
     const status = matching.find(group => group.status === 'priority_hotspot')?.status ?? matching[0]?.status ?? 'none';
-    const label = zone.name + ' · ' + hotspotStatus[status];
+    const label = zone.name + ' � ' + hotspotStatus[status];
     const addButton = (parent, text, className) => {
       const button = el('button', text);
       button.type = 'button';
@@ -329,17 +329,17 @@ function reportCard(report, reports, selected, canReview, version) {
   const card = el('li');
   const review = latestReview(report);
   const model = events(report).find(item => item.action === 'model')?.model_output;
-  card.append(el('h3', zoneName(report.zone_id, selected) + ' · ' + time.format(new Date(report.observed_at)) + ' IST'),
-    el('p', review ? labels[review.action] + (review.category ? ' · ' + labels[review.category] : '') : 'Awaiting human review'));
+  card.append(el('h3', zoneName(report.zone_id, selected) + ' � ' + time.format(new Date(report.observed_at)) + ' IST'),
+    el('p', review ? labels[review.action] + (review.category ? ' � ' + labels[review.category] : '') : 'Awaiting human review'));
   card.append(el('small', 'JalNetra reference ' + report.id));
   if (report.note) card.append(el('p', report.note));
   const readings = readingText(report.ph, report.temperature_c);
-  if (readings) card.append(el('p', 'Citizen-reported · ' + readings));
+  if (readings) card.append(el('p', 'Citizen-reported � ' + readings));
   if (review?.note) card.append(el('p', review.note));
   card.append(viewPhoto(report.id, 'Citizen photo from ' + zoneName(report.zone_id, selected), version));
   if (model) {
-    const cues = model.detections?.map(item => labels[item.category] + ' — ' + item.cue);
-    card.append(el('p', 'Preliminary photo assessment · ' + (model.imageQuality === 'unclear' ? 'Image unclear' : cues?.join('; ') || 'No visible target signs')));
+    const cues = model.detections?.map(item => labels[item.category] + ' - ' + item.cue);
+    card.append(el('p', 'Preliminary photo assessment � ' + (model.imageQuality === 'unclear' ? 'Image unclear' : cues?.join('; ') || 'No visible target signs')));
   }
   if (!canReview) {
     if (model?.detections?.length) card.append(linkConcernButton(report, model));
@@ -355,8 +355,8 @@ function reportCard(report, reports, selected, canReview, version) {
   }
   const candidates = reports.filter(other => other.id !== report.id).map(other => {
     const distance = photoDistance(report.photo_hash, other.photo_hash);
-    return { id: other.id, distance, title: zoneName(other.zone_id, selected) + ' · ' +
-      time.format(new Date(other.observed_at)) + ' · ' + other.id.slice(0, 8) + (distance <= 6 ? ' · visually similar' : '') };
+    return { id: other.id, distance, title: zoneName(other.zone_id, selected) + ' � ' +
+      time.format(new Date(other.observed_at)) + ' � ' + other.id.slice(0, 8) + (distance <= 6 ? ' � visually similar' : '') };
   }).sort((a, b) => a.distance - b.distance);
   if (candidates.some(other => other.distance <= 6)) card.append(el('p', 'Possible near-duplicate. Compare the photos before deciding.'));
   const details = el('details');
@@ -367,7 +367,7 @@ function reportCard(report, reports, selected, canReview, version) {
     const history = el('details');
     history.append(el('summary', 'Review history'));
     for (const entry of events(report).filter(item => item.action !== 'model')) {
-      history.append(el('p', labels[entry.action] + ' · ' + time.format(new Date(entry.created_at)) + ' IST · ' + entry.note));
+      history.append(el('p', labels[entry.action] + ' � ' + time.format(new Date(entry.created_at)) + ' IST � ' + entry.note));
     }
     details.append(history);
   }
@@ -393,8 +393,8 @@ async function loadRecords() {
   const canReview = ['operator', 'admin'].includes(role);
   $('pilot-prev').disabled = true;
   $('pilot-next').disabled = true;
-  reports.replaceChildren(el('li', 'Loading observations…'));
-  concerns.replaceChildren(el('li', 'Loading concerns…'));
+  reports.replaceChildren(el('li', 'Loading observations.'));
+  concerns.replaceChildren(el('li', 'Loading concerns.'));
   const scope = '?lakeId=' + selected.id;
   const hotspotTask = canReview ? api('hotspots' + scope).then(({ groups }) => {
     if (version !== listVersion) return;
@@ -417,7 +417,7 @@ async function loadRecords() {
   reports.replaceChildren(...(photoData?.reports.length ? photoData.reports.map(report => reportCard(report, photoData.reports, selected, canReview, version)) : [el('li', photoData ? 'No observations on this page.' : 'Reports could not load. Click Refresh to retry.')]));
   concerns.replaceChildren(...(concernData?.concerns.length ? concernData.concerns.map(concern => {
     const row = el('li');
-    row.append(el('h3', labels[concern.category] + ' · ' + zoneName(concern.zone_id, selected)),
+    row.append(el('h3', labels[concern.category] + ' � ' + zoneName(concern.zone_id, selected)),
       el('p', concern.description), el('small', 'JalNetra reference ' + concern.id));
     if (concern.report_id) {
       row.append(el('p', 'Linked photo observation ' + concern.report_id),
@@ -460,7 +460,7 @@ function renderConditions() {
     const item = lakes.find(entry => entry.id === point.id);
     const state = (byLake.get(item.id) ?? []).reduce((best, signal) =>
       conditionState[signal.state].rank > conditionState[best].rank ? signal.state : best, 'unknown');
-    const label = item.name + ' · ' + conditionState[state].title;
+    const label = item.name + ' � ' + conditionState[state].title;
     const button = el('button');
     button.type = 'button';
     button.className = 'marker conditions-marker';
@@ -489,9 +489,9 @@ function renderConditions() {
   details.sort((a, b) => conditionState[b.state].rank - conditionState[a.state].rank ||
     Date.parse(b.observed_at) - Date.parse(a.observed_at));
   for (const signal of details) {
-    const subject = signal.category ? ' · ' + labels[signal.category] : '';
-    list.append(el('li', zoneName(signal.zone_id) + ' · ' + conditionState[signal.state].title + subject +
-      ' · ' + time.format(new Date(signal.observed_at)) + ' IST'));
+    const subject = signal.category ? ' � ' + labels[signal.category] : '';
+    list.append(el('li', zoneName(signal.zone_id) + ' � ' + conditionState[signal.state].title + subject +
+      ' � ' + time.format(new Date(signal.observed_at)) + ' IST'));
   }
   conditionPanel.append(list);
 }
@@ -557,7 +557,7 @@ async function runPreliminary(report, selected) {
     panel.replaceChildren(el('h3', 'Preliminary photo assessment'), el('p', note));
     if (model.detections.length) {
       const list = el('ul');
-      for (const item of model.detections) list.append(el('li', labels[item.category] + ' · ' + item.cue));
+      for (const item of model.detections) list.append(el('li', labels[item.category] + ' � ' + item.cue));
       panel.append(list, linkConcernButton(report, model));
     }
     panel.append(el('p', 'This image assessment cannot establish water quality or identify the source of an issue.'));
@@ -583,9 +583,9 @@ async function chooseLake() {
   $('pilot-enroll').hidden = !lake || !!role;
   $('pilot-intake').hidden = role !== 'citizen';
   $('pilot-admin').hidden = role !== 'admin';
-  $('pilot-role').textContent = (role ? 'Lake role · ' + role : 'Select a lake to join and report.') + ' · Account ID ' + user.id;
+  $('pilot-role').textContent = (role ? 'Lake role � ' + role : 'Select a lake to join and report.') + ' � Account ID ' + user.id;
   $('pilot-report-scope').textContent = ['operator', 'admin'].includes(role) ?
-    (visionConfigured ? 'Shared review queue' : 'Shared review queue · human review available') : 'Your latest submissions';
+    (visionConfigured ? 'Shared review queue' : 'Shared review queue � human review available') : 'Your latest submissions';
   for (const id of ['pilot-zone', 'pilot-concern-zone']) {
     $(id).replaceChildren(...(lake?.pilot_zones ?? []).map(zone => new Option(zone.name, zone.id)));
   }
@@ -606,7 +606,7 @@ async function chooseLake() {
 async function loadMembers(selected) {
   const { members } = await api('members?lakeId=' + selected.id);
   if (lake !== selected) return;
-  $('pilot-member-list').replaceChildren(...members.map(member => el('li', member.user_id + ' · ' + member.role)));
+  $('pilot-member-list').replaceChildren(...members.map(member => el('li', member.user_id + ' � ' + member.role)));
 }
 async function openWorkspace() {
   const [account, catalog, status] = await Promise.all([api('account'), api('catalog'), api('status')]);
@@ -646,7 +646,12 @@ function submitLogin(event) {
     const payload = Object.fromEntries(new FormData(event.target));
     const auth = await decode(await http(button.value, payload));
     event.target.reset();
-    if (button.value === 'signup') return msg(auth.message);
+    if (button.value === 'signup') {
+      $('citizen-signup').open = false;
+      $('pilot-email').value = payload.email.trim();
+      $('pilot-password').focus();
+      return msg(auth.message);
+    }
     const url = new URL(location.href);
     url.searchParams.set('role', event.target.id === 'pilot-operator-login' ? 'operator' : 'citizen');
     history.replaceState(null, '', url);
@@ -655,6 +660,8 @@ function submitLogin(event) {
   });
 }
 $('pilot-login').addEventListener('submit', submitLogin);
+$('pilot-signup').addEventListener('submit', submitLogin);
+if (location.hash === '#citizen-signup') $('citizen-signup').open = true;
 $('pilot-operator-login').addEventListener('submit', submitLogin);
 $('pilot-signout').addEventListener('click', () => operate($('pilot-signout'), async () => {
   try { await api('signout', {}); } finally {
