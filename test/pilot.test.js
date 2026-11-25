@@ -322,15 +322,15 @@ test('citizen preliminary analysis saves verified provider output for their own 
   assert.equal(visionCalls, 1);
 });
 
-test('citizen conditions require sign-in and return aggregate lake signals', async () => {
+test('citizen conditions are public and return aggregate lake signals', async () => {
   const signals = [{ lake_id: 'lake', zone_id: 'sector', state: 'verified', category: 'foam', observed_at: '2026-11-26T10:00:00Z' }];
   const handle = createPilotHandler({ ...settings, async request(url, options) {
     assert.equal(url.pathname, '/rest/v1/rpc/pilot_lake_conditions');
-    assert.equal(options.headers.Authorization, 'Bearer demo.token.value');
+    assert.equal(options.headers.Authorization, undefined);
     return Response.json(signals);
   } });
-  assert.equal((await handle(new Request(host + '/api/pilot/conditions'))).status, 401);
-  const response = await handle(new Request(host + '/api/pilot/conditions', { headers: { Authorization: 'Bearer demo.token.value' } }));
+  const response = await handle(new Request(host + '/api/pilot/conditions'));
+  assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { signals });
 });
 
@@ -351,4 +351,59 @@ test('pilot sign-in explains rejected credentials and unconfirmed email', async 
     assert.equal(response.status, 400);
     assert.equal((await response.json()).error.code, expected);
   }
+});
+
+test('a guest session returns auth tokens without exposing its stored credentials', async () => {
+  const handle = createPilotHandler({ ...settings, guestWriteToken: 'server-only-token',
+    async request(url, options) {
+      if (url.pathname.endsWith('pilot_create_guest')) {
+        const data = JSON.parse(options.body);
+        assert.equal(data.p_token, 'server-only-token');
+        assert.match(data.p_network, /^[a-f0-9]{64}$/);
+        return Response.json({ email: 'guest@example.invalid', password: 'internal-only' });
+      }
+      assert.equal(url.pathname, '/auth/v1/token');
+      assert.deepEqual(JSON.parse(options.body), { email: 'guest@example.invalid', password: 'internal-only' });
+      return Response.json({ access_token: 'test.access.token', refresh_token: 'refresh', user: { email: 'guest@example.invalid' } });
+    },
+  });
+  const response = await handle(new Request(host + '/api/pilot/guest', { method: 'POST', headers: { Origin: host }, body: '{}' }));
+  assert.equal(response.status, 201);
+  assert.deepEqual(await response.json(), { access_token: 'test.access.token', refresh_token: 'refresh' });
+  assert.equal((await handle(new Request(host + '/api/pilot/account'))).status, 401);
+});
+
+test('public demonstration sends a scenario that an operator can verify without affecting real reports', async () => {
+  const id = 'a1020000-0000-4000-8000-000000000042';
+  let row;
+  const handle = createPilotHandler({ ...settings, guestWriteToken: 'server-only-token',
+    async request(url, options) {
+      const body = JSON.parse(options.body);
+      if (url.pathname.endsWith('/pilot_start_demo')) {
+        assert.equal(options.headers.Authorization, undefined);
+        assert.equal(body.p_token, 'server-only-token');
+        assert.ok(['foam-inlet', 'algae', 'dumping'].includes(body.p_scenario));
+        row = { id, scenario: body.p_scenario, created_at: '2026-11-26T10:00:00Z', confirmed_at: null };
+        return Response.json(row);
+      }
+      assert.equal(url.pathname, '/rest/v1/rpc/pilot_demo_run');
+      assert.equal(options.headers.Authorization, 'Bearer demo.token.value');
+      assert.equal(body.p_id, id);
+      if (body.p_confirm) row.confirmed_at = '2026-11-26T10:05:00Z';
+      return Response.json(row);
+    },
+  });
+  const start = await handle(new Request(host + '/api/pilot/demo-concern', { method: 'POST', headers: { Origin: host } }));
+  assert.equal(start.status, 201);
+  const { concern } = await start.json();
+  assert.equal(concern.id, id);
+  assert.match(concern.photoUrl, /^\/api\/demo\/samples\//);
+  const url = host + '/api/pilot/demo-run';
+  assert.equal((await handle(new Request(url + '?id=' + id))).status, 401);
+  const operator = { Authorization: 'Bearer demo.token.value' };
+  assert.deepEqual((await (await handle(new Request(url + '?id=' + id, { headers: operator }))).json()).concern, concern);
+  const confirm = await handle(new Request(url, {
+    method: 'POST', headers: { ...operator, Origin: host }, body: JSON.stringify({ id }),
+  }));
+  assert.equal((await confirm.json()).concern.confirmedAt, '2026-11-26T10:05:00Z');
 });
