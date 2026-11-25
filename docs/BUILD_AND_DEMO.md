@@ -30,6 +30,8 @@ If the build is running late, prioritise photo intake, the bundled zone map, evi
 
 ## Run a rehearsal
 
+The public Vercel demo is available from the README. In the hosted version, each browser has its own seven-day session. Refresh after saving the second sample to check that the **Priority hotspot** and its draft can still be opened.
+
 Start with `node src/server.js --rehearsal` and open `http://127.0.0.1:3000`. Click **Start rehearsal**, submit **Foam from a second view** at North Inlet, and export the draft from the hotspot. Submit **Obscured view** to exercise review. **Restart rehearsal** clears only the in-memory scenario.
 
 Run the automated suite with `node --test`.

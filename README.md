@@ -8,37 +8,43 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — The local prototype supports report intake, vision analysis, hotspot mapping, complaint drafting, and an isolated rehearsal mode. Offline samples show simulated outcomes.
+**[Open the live JalNetra demo](https://jalnetra-wine.vercel.app/)**
 
-## Hosted demo on Vercel
+## Try the hosted demo
 
-The Vercel deployment uses simulated vision results for the labelled sample images. Start a rehearsal to seed North Inlet, submit the second foam sample at the same zone, then open the hotspot and export its complaint draft. Each browser gets an isolated session that survives refreshes. Private session data expires after seven days.
+1. Click **Start rehearsal** to seed a foam observation at **North Inlet**. The zone starts at **Watch**.
+2. Under **Offline demo images**, choose **Foam from a second view**, keep **North Inlet** selected, and click **Save observation**. The second distinct photo raises the zone to **Priority hotspot**.
+3. Open the hotspot, then click **Open complaint draft** and **Download draft**. The exported draft includes both report IDs.
+4. Select **Obscured view** and submit it to see how the app routes an unclear image to review.
 
-To deploy to another Vercel project, connect a private Vercel Blob store and expose its `BLOB_READ_WRITE_TOKEN` to the function. The local and hosted modes share the same SQLite workflow. The hosted function stores per-session snapshots in private Blob storage.
+The public demo uses labelled simulated vision results. Each browser gets an isolated session that survives a refresh and expires after seven days. **Restart rehearsal** replaces the observations in that session with the starting example. Complaint drafts are for review and download.
 
-## Run the prototype
+## Run and test locally
 
-Use Node.js 24 from the repository root. The local mode uses Node’s built-in HTTP server and SQLite, so there are no packages to install.
+From the repository root, use **Node.js 24**.
 
 ```bash
 node src/server.js
+node --test
 ```
 
-Open `http://127.0.0.1:3000`. Select a shoreline zone, add a JPEG or PNG, and save the observation. The local demo keeps the latest observations in view and saves photos and report IDs in `data/jalnetra.sqlite`. Select a sample from **Offline demo images** to see one of the labelled analysis outcomes.
+Open `http://127.0.0.1:3000`. The local server runs without installing packages and saves reports in `data/jalnetra.sqlite`. To rehearse without internet or an API key, run `node src/server.js --rehearsal` and follow the same demo steps. The local rehearsal uses an in-memory database.
 
-Run `node --test` to verify the report, vision, hotspot, complaint, and rehearsal paths. The tests use SQLite and simulated or mocked vision responses.
+### Enable live vision locally
 
-### Rehearse the complete demo
+Copy `.env.example` to `.env.local`, set `JALNETRA_MODE=live`, and supply `OPENAI_API_KEY` and `JALNETRA_VISION_MODEL` for an image-capable Responses API model that supports structured outputs.
 
 ```bash
-node src/server.js --rehearsal
+node --env-file=.env.local src/server.js
 ```
 
-Open `http://127.0.0.1:3000` and click **Start rehearsal**. North Inlet begins with one matching foam observation and a **Watch** status. Select **Foam from a second view** in **Offline demo images**, then save it at North Inlet. Open the **Priority hotspot** to review both photos, generate a civic complaint draft, and download it. Submit **Obscured view** to show the review path. **Restart rehearsal** clears only the in-memory rehearsal session and restores the first observation. You can run the entire sequence offline.
+During analysis the server sends the normalized photo and the vision prompt to the provider. Local live reports and demo reports use separate datasets.
 
-### Enable live vision
+### Deploy to Vercel
 
-Set `JALNETRA_MODE=live`, `OPENAI_API_KEY`, and `JALNETRA_VISION_MODEL` in the shell before running `node src/server.js`. Use an image-capable Responses API model that supports structured outputs. The server sends only normalized image data and the vision prompt. Reports and drafts from live mode are kept separate from demo data. The default is offline mode, and `--rehearsal` always uses offline samples.
+Use Node.js 24 and the repository's `vercel.json`. Connect a **private Vercel Blob store** to the project with `BLOB_READ_WRITE_TOKEN` available to the server function. The hosted function stores a private SQLite snapshot for each browser session.
+
+The current production site was deployed directly from this repository's source. Automatic redeploys from GitHub require connecting the repository to the Vercel project. The automated test workflow checks code and does not publish the site.
 
 ## What the project solves
 
@@ -95,7 +101,7 @@ One eligible photo starts **Watch**. Two distinct eligible photos raise a **Prio
 
 ### Phase 4 · Civic complaint drafting
 
-The operator opens a priority category and requests a draft. The server checks eligibility again and saves the draft with the exact evidence report IDs. The operator can edit the wording or recipient and copy or download the result. The operator verifies which civic body should receive a real complaint.
+The operator opens a priority category and requests a draft. The server checks eligibility again and saves the draft with the exact evidence report IDs. The operator can edit the wording or recipient and download the result. The operator verifies which civic body should receive a real complaint.
 
 **Phase output** — An editable complaint draft with a traceable evidence list.
 
@@ -199,7 +205,8 @@ A report points to its current analysis attempt. Earlier attempts remain auditab
 
 | Concern | Prototype decision |
 |---|---|
-| Presentation | One local process on the presentation laptop. The map and fixtures ship with the build. |
+| Presentation | The public demo runs on Vercel. Local rehearsal runs from one Node.js process with bundled map data and fixtures. |
+| Hosted storage | A secure session cookie scopes each browser to a private Blob snapshot. Snapshots expire after seven days. |
 | Credentials | The vision key is supplied through an environment variable and stays on the server. |
 | Model inputs | Send normalized pixels only. Keep citizen notes, readings and locations local during analysis. |
 | Replay | Display the source and use demo-only data. Unknown replay images should return a clear unsupported-fixture outcome. |
@@ -211,7 +218,7 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-Zone listing, report intake, history, and photo retrieval are implemented. Retry, hotspot, and complaint routes are implemented. The rehearsal reset is available only in the isolated in-memory mode. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. Retry, hotspot, and complaint routes are implemented. Rehearsal reset is available in local in-memory rehearsal and in each isolated hosted session. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|
@@ -227,7 +234,7 @@ Zone listing, report intake, history, and photo retrieval are implemented. Retry
 | `GET /api/complaints/:id` | Draft ID | `200` with the saved draft and its evidence. |
 | `PATCH /api/complaints/:id` | JSON `recipient`, `draftText` | `200` with saved edits and the original evidence. |
 | `GET /api/complaints/:id/export` | Draft ID | `200` with a downloadable text file. |
-| `POST /api/demo/reset` | JSON object in rehearsal mode | `200` after clearing the rehearsal database and seeding one Watch observation. |
+| `POST /api/demo/reset` | JSON object in rehearsal mode | `200` after resetting the current rehearsal session and seeding one Watch observation. |
 
 Use `400` for invalid fields, `404` for records absent from the active dataset, `409` for a draft whose evidence no longer qualifies or reuse of a request ID with different content, `413` for oversized files, and `415` for unsupported files. A vision failure after a successful save returns the saved report with `needs_review` and a reason. Use a predictable error shape such as `{"error":{"code":"INVALID_ZONE","message":"Choose a listed shoreline zone."}}`.
 
