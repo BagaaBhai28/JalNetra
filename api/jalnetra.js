@@ -1,4 +1,5 @@
 import { BlobNotFoundError, BlobPreconditionFailedError, get, head, put } from '@vercel/blob';
+import { getVercelOidcToken } from '@vercel/oidc';
 import { createHostedHandler, SnapshotConflict } from '../src/hosted.js';
 import { createPilotHandler } from '../src/pilot.js';
 
@@ -38,16 +39,22 @@ const store = {
 };
 
 const hosted = createHostedHandler(store);
-const pilot = createPilotHandler({
-  url: process.env.SUPABASE_URL,
-  publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
-  apiKey: process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN,
-  model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
-  gateway: !process.env.OPENAI_API_KEY,
-});
-
 export default {
   async fetch(request) {
+    const url = new URL(request.url);
+    const route = url.pathname === '/api/jalnetra' ? url.searchParams.get('jalroute') : url.pathname.slice(5);
+    if (!route?.startsWith('pilot/')) return hosted(request);
+    let apiKey = process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY;
+    if (!apiKey && ['pilot/status', 'pilot/analyze'].includes(route)) {
+      apiKey = await getVercelOidcToken().catch(() => undefined);
+    }
+    const pilot = createPilotHandler({
+      url: process.env.SUPABASE_URL,
+      publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
+      apiKey,
+      model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
+      gateway: !process.env.OPENAI_API_KEY,
+    });
     return (await pilot(request)) ?? hosted(request);
   },
 };
