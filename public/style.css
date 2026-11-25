@@ -32,7 +32,7 @@ p { margin: 0; }
 .city-explorer { margin-bottom: 15px; }
 .city-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(245px, 1fr); }
 .city-map-frame { position: relative; min-width: 0; height: clamp(300px, 40vw, 420px); }
-.city-map { height: 100%; aspect-ratio: auto; cursor: grab; touch-action: none; user-select: none; }
+.map.city-map { width: 100%; height: 100%; aspect-ratio: auto; cursor: grab; touch-action: none; user-select: none; }
 .city-map.is-dragging { cursor: grabbing; }
 .city-map:focus-visible { outline: 2px solid #174e3f; outline-offset: -2px; }
 .city-grid.is-expanded { position: fixed; z-index: 5; inset: 0; height: 100dvh; grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 430px); background: var(--white); }
@@ -40,7 +40,7 @@ p { margin: 0; }
 .city-grid.is-expanded .city-sidebar { min-height: 0; }
 .map-expanded { overflow: hidden; }
 .city-sidebar { padding: 15px 18px; border-left: 1px solid var(--line); min-width: 0; }
-.city-sidebar:has(#lake-profile:not([hidden])), .city-grid.is-expanded .city-sidebar { overflow: auto; overscroll-behavior: contain; max-height: clamp(300px, 40vw, 420px); }
+.city-sidebar:has(:where(#lake-profile:not([hidden]))), .city-grid.is-expanded .city-sidebar { overflow: auto; overscroll-behavior: contain; max-height: clamp(300px, 40vw, 420px); }
 .city-grid.is-expanded .city-sidebar { max-height: none; padding: 20px; }
 .lake-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 280px; overflow: auto; align-content: start; }
 .lake-choice { border: 1px solid #a5bdaf; background: #f4f8f0; color: #174137; border-radius: 18px; padding: 6px 9px; cursor: pointer; font-size: .78rem; }
