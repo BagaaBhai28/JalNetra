@@ -37,6 +37,21 @@ p { margin: 0; }
 .marker { position: absolute; transform: translate(-50%, -50%); background: #fafff9; color: #174137; border: 1px solid #407763; border-radius: 50px; min-height: 34px; padding: 6px 10px; font-size: .73rem; font-weight: 700; box-shadow: 0 2px 6px #15372f2b; white-space: nowrap; cursor: pointer; }
 .marker[aria-pressed="true"] { color: #fff; background: #174e3f; }
 .map-help { padding: 12px 19px; margin: 0; }
+.marker[data-status="watch"]::before, .marker[data-status="priority_hotspot"]::before {
+  content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 4px; background: #e6a63c; border: 1px solid #995910;
+}
+.marker[data-status="priority_hotspot"]::before { background: #e77560; border-color: #a33029; }
+.evidence-panel { padding: 12px 19px 15px; border-top: 1px solid var(--line); }
+.evidence-panel h3 { margin: 0 0 5px; font-size: .95rem; }
+.evidence-panel p { color: var(--muted); font-size: .79rem; }
+.evidence-zone { font-weight: 650; }
+.evidence-group { margin-top: 8px; padding: 9px; border-radius: 8px; background: #edf5ed; }
+.evidence-group h4 { margin: 0; font-size: .84rem; }
+.evidence-group ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.evidence-group li { display: flex; align-items: start; gap: 8px; padding-top: 5px; font-size: .8rem; }
+.evidence-group li div { min-width: 0; overflow-wrap: anywhere; }
+.evidence-group img { width: 56px; height: 37px; border-radius: 5px; object-fit: cover; }
 form { display: grid; gap: 7px; padding: 14px 19px 13px; }
 label { font-size: .87rem; font-weight: 650; }
 .hint { font-weight: 400; }

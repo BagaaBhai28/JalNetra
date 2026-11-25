@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
 import { claimAttempt, runAttempt, transact } from './analysis.js';
+import { hotspotDashboard } from './hotspots.js';
 import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList } from './vision.js';
 
 const zones = [
@@ -225,6 +226,9 @@ export function createApp({
       if (req.method === 'GET' && mode === 'demo' && pathname.startsWith('/api/demo/samples/')) {
         const sample = getSample(pathname.slice('/api/demo/samples/'.length));
         if (sample) return respond(res, 200, sample.png, 'image/png');
+      }
+      if (req.method === 'GET' && pathname === '/api/hotspots') {
+        return respond(res, 200, hotspotDashboard(db, mode, Date.now()));
       }
       if (req.method === 'GET' && pathname === '/api/zones') {
         return respond(res, 200, db.prepare(`SELECT id, lake_name AS lakeName, name,

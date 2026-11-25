@@ -8,7 +8,7 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — Report intake and vision analysis run locally. The offline mode uses labelled sample images with simulated results.
+**Current status** — Report intake, vision analysis, and hotspot mapping run locally. The offline mode uses labelled sample images with simulated results.
 
 ## Run the prototype
 
@@ -193,7 +193,7 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-Zone listing, report intake, history, and photo retrieval are implemented. The retry route is implemented. The hotspot and complaint routes describe upcoming phases. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. Retry and hotspot routes are implemented. The complaint route describes the next phase. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|

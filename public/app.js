@@ -8,6 +8,9 @@ const submit = document.querySelector('#submit');
 const markers = document.querySelector('#map-zones');
 const historyStatus = document.querySelector('#history-status');
 const reports = document.querySelector('#report-list');
+const evidenceContent = document.querySelector('#evidence-content');
+const hotspotLabels = { none: 'No active evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
+let dashboard;
 let requestId = crypto.randomUUID();
 let previewUrl;
 let selectedFile;
@@ -41,6 +44,67 @@ function updateTimestamp() {
 function highlightZone() {
   for (const marker of markers.children) {
     marker.setAttribute('aria-pressed', String(marker.dataset.zoneId === zone.value));
+    const hotspot = dashboard?.zones.find(item => item.zoneId === marker.dataset.zoneId);
+    marker.dataset.status = hotspot?.status ?? 'none';
+    marker.setAttribute('aria-label', marker.textContent + ' — ' + hotspotLabels[marker.dataset.status]);
+  }
+  renderEvidence();
+}
+
+function textElement(tag, text, className) {
+  const element = document.createElement(tag);
+  element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+
+function renderEvidence() {
+  evidenceContent.replaceChildren();
+  if (!dashboard) {
+    evidenceContent.append(textElement('p', 'Loading zone evidence…'));
+    return;
+  }
+  const selected = dashboard.zones.find(item => item.zoneId === zone.value) ??
+    dashboard.zones.find(item => item.status === 'priority_hotspot') ??
+    dashboard.zones.find(item => item.status === 'watch');
+  if (!selected) {
+    evidenceContent.append(textElement('p', 'No matching shoreline observations in the last 48 hours.'));
+    return;
+  }
+  evidenceContent.append(textElement('p', selected.name + ' · ' + hotspotLabels[selected.status], 'evidence-zone'));
+  if (!selected.categories.length) evidenceContent.append(textElement('p', 'No eligible reports in this zone.'));
+  for (const group of selected.categories) {
+    const card = document.createElement('article');
+    card.className = 'evidence-group';
+    const count = group.evidenceCount + (group.evidenceCount === 1 ? ' photo' : ' photos');
+    card.append(textElement('h4', categoryLabels[group.category]),
+      textElement('p', hotspotLabels[group.status] + ' · ' + count + ' in 48 hours'));
+    const list = document.createElement('ul');
+    for (const report of group.reports) {
+      const row = document.createElement('li');
+      const photo = document.createElement('img');
+      photo.loading = 'lazy';
+      photo.src = report.photoUrl;
+      photo.alt = 'Evidence photo from ' + selected.name;
+      const summary = document.createElement('div');
+      summary.append(textElement('strong', report.cue),
+        textElement('p', formatTime.format(new Date(report.observedAt)) + ' IST · ' + sourceLabels[report.analysisSource]),
+        textElement('p', report.id));
+      row.append(photo, summary);
+      list.append(row);
+    }
+    card.append(list);
+    evidenceContent.append(card);
+  }
+}
+
+async function loadHotspots() {
+  try {
+    dashboard = await getJson('/api/hotspots');
+    highlightZone();
+  } catch {
+    dashboard = undefined;
+    evidenceContent.replaceChildren(textElement('p', 'Zone evidence could not be loaded. Refresh to try again.'));
   }
 }
 
@@ -153,7 +217,7 @@ async function loadHistory() {
           try {
             const updated = await getJson('/api/reports/' + item.id + '/retry', { method: 'POST' });
             setStatus(statusLabels[updated.status], updated.status === 'needs_review' ? 'error' : 'success');
-            await loadHistory();
+            await Promise.all([loadHistory(), loadHotspots()]);
           } catch (error) {
             setStatus(error.message, 'error');
             retry.disabled = false;
@@ -274,7 +338,7 @@ form.addEventListener('submit', async event => {
       requestId = crypto.randomUUID();
     }
     setStatus('Observation saved. ' + statusLabels[report.status] + '. Report ID ' + report.id, 'success');
-    await loadHistory();
+    await Promise.all([loadHistory(), loadHotspots()]);
   } catch (error) {
     setStatus(error.message || 'The report could not be saved. Try again.', 'error');
   } finally {
@@ -285,7 +349,7 @@ form.addEventListener('submit', async event => {
 });
 
 updateTimestamp();
-loadZones().catch(() => setStatus('The shoreline zones could not be loaded. Refresh to try again.', 'error'));
+loadZones().then(loadHotspots).catch(() => setStatus('The shoreline zones could not be loaded. Refresh to try again.', 'error'));
 loadMode().catch(() => setStatus('Analysis mode could not be loaded. Refresh to try again.', 'error'));
 loadHistory();
 

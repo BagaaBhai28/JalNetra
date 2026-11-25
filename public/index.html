@@ -35,7 +35,11 @@
           </svg>
           <div id="map-zones" class="map-zones" aria-label="Select a zone on the map"></div>
         </div>
-        <p id="map-help" class="map-help">Select a marker or choose a zone in the form.</p>
+        <p id="map-help" class="map-help">Select a marker to see that zone’s evidence or choose a zone in the form.</p>
+        <section class="evidence-panel" aria-labelledby="evidence-title">
+          <h3 id="evidence-title">Zone evidence</h3>
+          <div id="evidence-content" aria-live="polite"></div>
+        </section>
       </section>
       <section class="card form-card" aria-labelledby="form-title">
         <div class="card-head"><div><h2 id="form-title">New observation</h2><p>Photo, location and observation time</p></div></div>
