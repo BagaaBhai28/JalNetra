@@ -82,3 +82,8 @@ CREATE TABLE complaint_evidence (
 
 CREATE INDEX report_active_zone ON report (data_mode, zone_id, observed_at);
 CREATE INDEX evidence_report ON complaint_evidence (report_id);
+
+CREATE TABLE report_photo (
+    report_id TEXT PRIMARY KEY REFERENCES report (id) ON DELETE CASCADE,
+    png BLOB NOT NULL
+);

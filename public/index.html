@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#133d38">
+  <title>JalNetra · Lake observations</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="JalNetra home"><span class="brand-icon" aria-hidden="true">≈</span> JalNetra</a>
+    <span class="scope"><span></span> Local demo</span>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow">LAKE MONITORING</p>
+      <h1 id="title">Report a shoreline observation</h1>
+      <p>Choose a zone and add a photo to record what you saw at Demo Lake.</p>
+    </section>
+    <div class="workspace">
+      <section class="card map-card" aria-labelledby="map-title">
+        <div class="card-head"><div><h2 id="map-title">Demo Lake</h2><p>Shoreline zone map</p></div><span class="tag">Illustrative</span></div>
+        <div class="map">
+          <svg viewBox="0 0 500 320" preserveAspectRatio="none" aria-hidden="true">
+            <defs><pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" stroke="#57897c" stroke-opacity=".14" fill="none"/></pattern></defs>
+            <rect width="500" height="320" fill="url(#grid)"/>
+            <path d="M-10 93C76 44 108 83 167 44S320 10 376 41 423 71 518 48M-12 270C73 218 101 285 192 296S364 302 411 259 473 258 522 236" class="contour"/>
+            <path d="M119 137C126 106 153 100 169 75S242 62 276 81C319 107 355 89 371 121 390 159 357 182 327 195S309 243 260 253 204 230 181 213 111 185 119 137Z" class="shore"/>
+            <path d="M125 143C132 113 167 103 178 82S243 72 273 89C318 115 348 100 363 127 382 157 349 177 322 187S304 233 259 244 211 222 186 206 117 179 125 143Z" class="lake"/>
+            <path d="M165 151c30-8 45-1 67 4s40 3 57-3m-102 29c26-5 49 14 78 8m-28-68c23 11 47 15 68 10" class="water-lines"/>
+            <path d="M453 280v-26l-5 7m5-7 5 7" class="north"/>
+            <text x="453" y="245" text-anchor="middle" class="north-label">N</text>
+          </svg>
+          <div id="map-zones" class="map-zones" aria-label="Select a zone on the map"></div>
+        </div>
+        <p id="map-help" class="map-help">Select a marker or choose a zone in the form.</p>
+      </section>
+      <section class="card form-card" aria-labelledby="form-title">
+        <div class="card-head"><div><h2 id="form-title">New observation</h2><p>Photo, location and observation time</p></div></div>
+        <form id="report-form">
+          <label for="zone">Shoreline zone</label>
+          <select id="zone" name="zoneId" required><option value="">Choose a zone</option></select>
+          <label for="observed-at">Observed at <span class="hint">(device time)</span></label>
+          <input id="observed-at" name="observedAt" type="datetime-local" required>
+          <label for="photo">Shoreline photo</label>
+          <div class="upload">
+            <input id="photo" type="file" accept="image/jpeg,image/png" aria-describedby="photo-help" required>
+            <p id="photo-help">JPEG or PNG, up to 5 MB</p>
+            <img id="preview" alt="Selected shoreline photo" hidden>
+          </div>
+          <details>
+            <summary>Optional readings and notes</summary>
+            <div class="readings">
+              <div><label for="ph">pH</label><input id="ph" name="ph" type="number" step="any"></div>
+              <div><label for="temperature">Temperature (°C)</label><input id="temperature" name="temperatureC" type="number" step="any"></div>
+            </div>
+            <label for="note">Notes</label>
+            <textarea id="note" name="note" maxlength="500" rows="2"></textarea>
+          </details>
+          <button id="submit" class="primary" type="submit">Save observation</button>
+          <p id="form-status" class="feedback" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </div>
+    <section class="card history" aria-labelledby="history-title">
+      <div class="card-head"><div><h2 id="history-title">Recent observations</h2><p>Times shown in IST</p></div></div>
+      <p id="history-status" role="status">Loading observations…</p>
+      <ul id="report-list" class="report-list"></ul>
+    </section>
+  </main>
+</body>
+</html>

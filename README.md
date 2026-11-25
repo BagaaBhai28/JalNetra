@@ -8,7 +8,19 @@
 
 A resident photographs a shoreline issue and selects a zone. JalNetra identifies visible signs of foam, algae-like growth, or dumping, groups related observations on a hotspot map, and prepares a civic complaint draft that lists the supporting report IDs.
 
-**Current status** — Hackathon design and implementation plan with a starter SQLite schema. The runnable web app is planned.
+**Current status** — Phase 1 report intake runs locally. Phase 2 will add vision analysis.
+
+## Run the prototype
+
+Use Node.js 24 or newer from the repository root. Phase 1 uses Node’s built-in HTTP server and SQLite, so there are no packages to install.
+
+```bash
+node src/server.js
+```
+
+Open `http://127.0.0.1:3000`. Select a shoreline zone, add a JPEG or PNG, and save the observation. The local demo keeps the latest observations in view and saves photos and report IDs in `data/jalnetra.sqlite`. Reports appear as **Pending analysis**.
+
+Run the intake regression check with `node --test`. It exercises the request handler and a real SQLite database, including reopening the database.
 
 ## What the project solves
 
@@ -45,7 +57,7 @@ flowchart TD
 
 The citizen selects **North Inlet**, **East Shore**, or **South Bank** on Demo Lake and submits a JPEG or PNG up to 5 MB. The app records observation and submission times separately, stores them in UTC, and displays them in IST. Optional pH, temperature, and notes stay with the observation. Readings are labelled **Citizen-reported** and do not affect hotspot scoring. Real pilot zones may include approximate coordinates.
 
-The server validates, decodes, and re-encodes the image, then saves a **Pending** report before calling the model. A retry with the same request ID and payload returns the existing report.
+The browser decodes and resizes the image. The server validates the pixels, encodes a PNG, and saves a **Pending** report. A retry with the same request ID and payload returns the existing report.
 
 **Phase output** — A saved observation with a stable report ID, photo, zone, and timestamp.
 
@@ -103,7 +115,7 @@ Two different images may depict the same scene. Pixel fingerprints catch repeate
 
 ```mermaid
 flowchart TD
-    UI["Browser views for reports, hotspots and drafts"] --> API["Express application"]
+    UI["Browser views for reports, hotspots and drafts"] --> API["Node.js HTTP application"]
     API --> REPORT["Report intake and analysis orchestration"]
     API --> HOTSPOT["Hotspot aggregation"]
     API --> DRAFT["Complaint draft service"]
@@ -111,7 +123,7 @@ flowchart TD
     HOTSPOT --> STORE
     DRAFT --> HOTSPOT
     DRAFT --> STORE
-    REPORT --> PHOTOS[("Local normalized photos")]
+    REPORT --> PHOTOS[("PNG evidence in SQLite")]
     REPORT --> ADAPTER["Vision adapter"]
     ADAPTER --> LIVE["Live vision model"]
     ADAPTER --> REPLAY["Offline response fixtures"]
@@ -120,19 +132,19 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | Browser | Render the form, bundled map, status labels, evidence panel, history, and draft editor. |
-| Express API | Serve the frontend and API from the same origin. Validate requests, identify the active data mode, and return consistent errors. |
+| HTTP API | Serve the frontend and API from the same origin. Validate requests, identify the active data mode, and return consistent errors. |
 | Intake | Validate format, byte limit and image dimensions. Strip metadata, save only the normalized image, and fingerprint it for evidence deduplication. |
 | Vision adapter | Give live and replay modes one result contract. Validate labels and cues against the allowlist and time out the live request at about 12 seconds. |
 | Hotspot service | Compute eligible evidence and group status from the persisted facts. The dashboard and complaint service share the same calculation. |
 | Draft service | Recheck eligibility and save the draft with evidence report IDs in one transaction. |
-| Persistence | SQLite stores zones, report and analysis history, and complaint drafts. Normalized photos are kept in a local folder and served by report ID. |
+| Persistence | SQLite stores zones, report and analysis history, and complaint drafts. Normalized PNG photos are stored in SQLite and served by report ID. |
 
 ### Upload and analysis sequence
 
 ```mermaid
 sequenceDiagram
     actor Citizen
-    participant API as Express API
+    participant API as HTTP API
     participant Store as SQLite
     participant Vision as Vision adapter
     Citizen->>API: Submit photo, zone and request ID
@@ -149,7 +161,7 @@ sequenceDiagram
     API-->>Citizen: Return saved report and result
 ```
 
-**Retry handling.** Uniquely constrain request IDs per data mode. Write normalized files under generated names, clean up temporary files on failed intake, and return an existing report for a repeat submission. Use a per-report attempt record with an expiry for model calls. Claim a retry atomically for one caller. A late response from an expired attempt must never replace the outcome of a fresher attempt.
+**Retry handling.** Uniquely constrain request IDs per data mode. Store the report and PNG bytes together in one transaction. An identical repeat submission returns its existing report. Use a per-report attempt record with an expiry for model calls. Claim a retry atomically for one caller. A late response from an expired attempt must never replace the outcome of a fresher attempt.
 
 ### Data relationships
 
@@ -181,14 +193,14 @@ Implement intake and storage first. Put vision adapters behind one interface so 
 
 ## API and data contract
 
-This is the contract for the planned local prototype. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
+Zone listing, report intake, history, and photo retrieval are implemented. The analysis retry, hotspot, and complaint routes describe upcoming phases. All routes are scoped to the active dataset. Configure the dataset mode on the server and include it in API results and the UI. Use ISO 8601 timestamps with offsets for inputs and UTC timestamps for stored and returned values.
 
 | Method and path | Inputs | Success |
 |---|---|---|
 | `GET /api/zones` | None | `200` with zone IDs, names, optional coordinates, and marker positions. |
 | `POST /api/reports` | Multipart fields listed below | `201` for a newly saved report. `200` for a repeat request that returns its existing report. |
 | `GET /api/reports` | Optional `zoneId` filter | `200` with recent reports and status. Use a bounded result set. |
-| `GET /api/reports/:id` | Report ID | `200` with fields, model result, and photo URL. |
+| `GET /api/reports/:id` | Report ID | `200` with report fields, analysis status, and photo URL. |
 | `GET /api/reports/:id/photo` | Report ID | `200` with the normalized image and correct content type. |
 | `POST /api/reports/:id/retry` | Report ID | `200` with the updated result or `202` with an already-running attempt. |
 | `GET /api/hotspots` | None | `200` with zones and their current per-category evidence. |
@@ -200,7 +212,7 @@ Use `400` for invalid fields, `404` for records absent from the active dataset, 
 
 | Field | Rule |
 |---|---|
-| `photo` | One JPEG or PNG, at most 5 MB. Decode it on the server before storing. |
+| `photo` | Raw RGB bytes from the form. The browser decodes a JPEG or PNG up to 5 MB and downsizes it to a maximum of 1,200 pixels on either side. |\n| `photoWidth` and `photoHeight` | Pixel dimensions from 1 to 1,200. The server requires exactly three RGB bytes per pixel and writes its own metadata-free PNG. |
 | `zoneId` | Existing zone ID. |
 | `observedAt` | Required timestamp with an offset. Reject future times. |
 | `requestId` | Stable, unique client-generated ID for the submission and its retries. |
@@ -249,7 +261,7 @@ Render zone statuses as `none`, `watch`, or `priority_hotspot`. Report analysis 
 
 ### SQLite schema
 
-Enable foreign keys on every SQLite connection. Insert a generated draft and its evidence rows in one transaction. The schema below can be applied directly to a new database.
+Enable foreign keys on every SQLite connection. Phase 1 stores PNG bytes in `report_photo` and fingerprints the normalized pixels and dimensions. Insert a generated draft and its evidence rows in one transaction. The schema below can be applied directly to a new database.
 
 <details>
 <summary>View the complete SQLite schema</summary>
@@ -339,6 +351,11 @@ CREATE TABLE complaint_evidence (
 
 CREATE INDEX report_active_zone ON report (data_mode, zone_id, observed_at);
 CREATE INDEX evidence_report ON complaint_evidence (report_id);
+
+CREATE TABLE report_photo (
+    report_id TEXT PRIMARY KEY REFERENCES report (id) ON DELETE CASCADE,
+    png BLOB NOT NULL
+);
 ```
 
 </details>
