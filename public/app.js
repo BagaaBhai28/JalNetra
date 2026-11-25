@@ -20,6 +20,48 @@ let lakes = [];
 let currentLake;
 let hostedReporting = true;
 let hostedDemo = false;
+let demoConcern;
+const demoConcernStore = 'jalnetra-operator-demo';
+const demoMarker = document.querySelector('#demo-alert-marker');
+const demoLayer = document.querySelector('#demo-alert-layer');
+
+function drawDemoAlert(viewport) {
+  const target = lakes.find(item => item.id === 'devanahalli-lake');
+  const selectedLake = currentLake?.kind === 'geographic';
+  const visible = Boolean(demoConcern && target && (!selectedLake || currentLake.id === target.id));
+  demoMarker.hidden = !visible;
+  if (!visible) return;
+  const point = selectedLake ? target.zones.find(zone => zone.name === demoConcern.sector) :
+    { latitude: target.center[0], longitude: target.center[1] };
+  if (point) placeMarkers([{ ...point, id: 'demo-alert' }], demoLayer, viewport);
+}
+
+function showDemoConcern(concern) {
+  demoConcern = concern;
+  const link = document.querySelector('#open-demo-operator');
+  link.href = '/pilot.html?role=operator&demoRun=' + encodeURIComponent(concern.id);
+  link.hidden = false;
+  document.querySelector('#demo-concern-feedback').textContent =
+    'Demo sent: ' + concern.title + ' � ' + concern.lake + ', ' + concern.sector + '.';
+  cityController.redraw();
+}
+
+document.querySelector('#send-demo-concern').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  const feedback = document.querySelector('#demo-concern-feedback');
+  button.disabled = true;
+  feedback.textContent = 'Sending a simulated concern to the operator.';
+  try {
+    const { concern } = await getJson('/api/pilot/demo-concern', jsonRequest('POST', {}));
+    try { localStorage.setItem(demoConcernStore, JSON.stringify(concern)); } catch { /* The operator link still carries the run ID. */ }
+    await setLake('devanahalli-lake');
+    showDemoConcern(concern);
+  } catch (error) {
+    feedback.textContent = error.message || 'The demo concern could not be sent.';
+  } finally {
+    button.disabled = false;
+  }
+});
 let readingRequest = 0;
 const lakeSelect = document.querySelector('#lake-select');
 const readingZone = document.querySelector('#reading-zone');
@@ -295,10 +337,12 @@ function renderCity(viewport) {
   cityMap.dataset.zoom = viewport.zoom;
   if (currentLake?.kind === 'geographic') {
     renderViewport(cityTiles, currentLake.zones, markers, viewport);
+    drawDemoAlert(viewport);
     return;
   }
   renderViewport(cityTiles, cityPoints, cityMarkers, viewport);
   placeMarkers(landmarks, landmarkLayer, viewport);
+  drawDemoAlert(viewport);
   const labelBounds = [...landmarkLayer.children].filter(item => !item.hasAttribute('data-offscreen'))
     .map(item => item.getBoundingClientRect());
   for (const pin of cityMarkers.children) {
@@ -594,7 +638,6 @@ function setLake(id) {
   window.history.replaceState(null, '', url);
   const lakeParam = geographic ? '&lake=' + encodeURIComponent(id) : '';
   document.querySelector('#shared-reporting').href = '/pilot.html?role=citizen' + lakeParam;
-  document.querySelector('#citizen-signup-link').href = '/pilot.html?role=citizen' + lakeParam + '#citizen-signup';
   document.querySelector('#operator-reporting').href = '/pilot.html?role=operator' + lakeParam + '#pilot-operator';
   zonesLoaded = true;
   highlightZone();
@@ -609,7 +652,13 @@ async function loadLakes() {
   buildCityExplorer();
   for (const item of lakes) lakeSelect.add(new Option(item.name, item.id));
   const requested = hostedDemo ? 'demo-lake' : new URLSearchParams(window.location.search).get('lake');
-  return setLake(lakes.some(item => item.id === requested) ? requested : 'demo-lake');
+  await setLake(lakes.some(item => item.id === requested) ? requested : 'demo-lake');
+  if (hostedReporting) {
+    try {
+      const previous = JSON.parse(localStorage.getItem(demoConcernStore));
+      if (previous?.id && Date.now() - Date.parse(previous.createdAt) < 86400000) showDemoConcern(previous);
+    } catch { /* A fresh demo can still be sent. */ }
+  }
 }
 
 lakeSelect.addEventListener('change', () => setLake(lakeSelect.value));
@@ -774,6 +823,7 @@ async function loadMode() {
     document.querySelector('#intro-description').textContent = 'Use sample photos to test how simulated observations become hotspots and complaint drafts.';
   }
   document.querySelector('#try-demo').hidden = !hostedReporting;
+  document.querySelector('#demo-concern-tools').hidden = !hostedReporting;
   document.querySelector('#leave-demo').hidden = !hostedDemo;
   document.querySelector('#city-explorer').hidden = hostedDemo;
   document.querySelector('#profile-report').hidden = !hostedReporting;
