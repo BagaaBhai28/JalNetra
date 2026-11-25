@@ -1,3 +1,6 @@
+import { drawLakeMap, nearestZone } from './lake-map.js';
+import { readingText, renderReadings } from './readings.js';
+
 const form = document.querySelector('#report-form');
 const zone = document.querySelector('#zone');
 const times = document.querySelector('#observed-at');
@@ -12,6 +15,15 @@ const evidenceContent = document.querySelector('#evidence-content');
 const hotspotLabels = { none: 'No active evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
 let dashboard;
 let zonesLoaded = false;
+let lakes = [];
+let currentLake;
+let readingRequest = 0;
+const lakeSelect = document.querySelector('#lake-select');
+const readingZone = document.querySelector('#reading-zone');
+const gpsButton = document.querySelector('#gps-zone');
+const gpsStatus = document.querySelector('#gps-status');
+const map = document.querySelector('#lake-map');
+const tiles = document.querySelector('#map-tiles');
 const draftDialog = document.querySelector('#draft-dialog');
 const draftForm = document.querySelector('#draft-form');
 const draftStatus = document.querySelector('#draft-status');
@@ -68,6 +80,18 @@ function textElement(tag, text, className) {
   return element;
 }
 
+function appendReportContext(element, report) {
+  const readings = readingText(report);
+  if (readings) element.append(textElement('p', readings, 'reading-detail'));
+  if (report.note) element.append(textElement('p', 'Note: ' + report.note));
+}
+
+function lakeEndpoint(path, zoneId) {
+  const query = new URLSearchParams({ lakeId: currentLake.id });
+  if (zoneId) query.set('zoneId', zoneId);
+  return path + '?' + query;
+}
+
 function renderEvidence() {
   evidenceContent.replaceChildren();
   if (!dashboard) {
@@ -100,6 +124,7 @@ function renderEvidence() {
       summary.append(textElement('strong', report.cue),
         textElement('p', formatTime.format(new Date(report.observedAt)) + ' IST · ' + sourceLabels[report.analysisSource]),
         textElement('p', report.id));
+      appendReportContext(summary, report);
       row.append(photo, summary);
       list.append(row);
     }
@@ -170,13 +195,38 @@ draftForm.addEventListener('submit', event => {
 downloadDraft.addEventListener('click', () => saveDraft(true));
 
 async function loadHotspots() {
+  const lake = currentLake;
   try {
-    dashboard = await getJson('/api/hotspots');
+    const result = await getJson(lakeEndpoint('/api/hotspots'));
+    if (lake !== currentLake) return;
+    dashboard = result;
     highlightZone();
   } catch {
+    if (lake !== currentLake) return;
     dashboard = undefined;
     evidenceContent.replaceChildren(textElement('p', 'Zone evidence could not be loaded. Refresh to try again.'));
   }
+}
+
+async function loadReadings() {
+  const revision = ++readingRequest;
+  const feedback = document.querySelector('#reading-status');
+  feedback.textContent = 'Loading readings…';
+  try {
+    const view = await getJson(lakeEndpoint('/api/readings', readingZone.value));
+    if (revision !== readingRequest) return;
+    renderReadings(view.items, formatTime);
+    feedback.textContent = view.items.length ? currentLake.name + ' · ' + view.items.length + ' recorded observations' :
+      'No readings have been saved for this view.';
+  } catch {
+    if (revision !== readingRequest) return;
+    renderReadings([], formatTime);
+    feedback.textContent = 'Water readings could not be loaded. Refresh to try again.';
+  }
+}
+
+function refreshDashboard() {
+  return Promise.all([loadHistory(), loadHotspots(), loadReadings()]);
 }
 
 function setStatus(message, mood = '') {
@@ -230,29 +280,106 @@ async function normalize(file) {
   }
 }
 
-async function loadZones() {
-  for (const item of await getJson('/api/zones')) {
+function redrawMap() {
+  if (currentLake?.kind === 'geographic') drawLakeMap(map, tiles, currentLake, markers);
+}
+
+function setLake(id) {
+  const selected = lakes.find(item => item.id === id);
+  if (!selected) return;
+  const geographic = selected.kind === 'geographic';
+  currentLake = selected;
+  lakeSelect.value = id;
+  requestId = crypto.randomUUID();
+  dashboard = undefined;
+  document.querySelector('#map-title').textContent = selected.name;
+  document.querySelector('#map-kind').textContent = geographic ? 'Approximate zones' : 'Illustrative';
+  document.querySelector('#illustrative-map').toggleAttribute('hidden', geographic);
+  document.querySelector('#map-attribution').hidden = !geographic;
+  tiles.hidden = !geographic;
+  gpsButton.hidden = !geographic;
+  gpsStatus.hidden = true;
+  if (!geographic) tiles.replaceChildren();
+  if (geographic && sampleSelect.value) {
+    sampleSelect.value = '';
+    photoInput.required = true;
+    ++previewRevision;
+    clearPreview();
+  }
+  sampleControl.hidden = geographic || samples.length === 0;
+  zone.replaceChildren(new Option('Choose a zone', ''));
+  readingZone.replaceChildren(new Option('All zones', ''));
+  markers.replaceChildren();
+  for (const item of selected.zones) {
     zone.add(new Option(item.name, item.id));
+    readingZone.add(new Option(item.name, item.id));
     const marker = document.createElement('button');
     marker.type = 'button';
     marker.className = 'marker';
     marker.textContent = item.name;
     marker.dataset.zoneId = item.id;
-    marker.style.left = item.markerX * 100 + '%';
-    marker.style.top = item.markerY * 100 + '%';
+    if (!geographic) {
+      marker.style.left = item.markerX * 100 + '%';
+      marker.style.top = item.markerY * 100 + '%';
+    }
     marker.addEventListener('click', () => {
       zone.value = item.id;
       zone.dispatchEvent(new Event('change', { bubbles: true }));
     });
     markers.append(marker);
   }
+  const url = new URL(window.location.href);
+  if (geographic) url.searchParams.set('lake', id);
+  else url.searchParams.delete('lake');
+  window.history.replaceState(null, '', url);
   zonesLoaded = true;
+  redrawMap();
   highlightZone();
+  renderReadings([], formatTime);
+  return refreshDashboard();
 }
 
+async function loadLakes() {
+  lakes = await getJson('/api/lakes');
+  for (const item of lakes) lakeSelect.add(new Option(item.name, item.id));
+  const requested = new URLSearchParams(window.location.search).get('lake');
+  return setLake(lakes.some(item => item.id === requested) ? requested : 'demo-lake');
+}
+
+lakeSelect.addEventListener('change', () => setLake(lakeSelect.value));
+readingZone.addEventListener('change', loadReadings);
+new ResizeObserver(redrawMap).observe(map);
+gpsButton.addEventListener('click', () => {
+  const lake = currentLake;
+  gpsStatus.hidden = false;
+  if (!navigator.geolocation) {
+    gpsStatus.textContent = 'GPS is unavailable in this browser. Choose a zone on the map or from the list.';
+    return;
+  }
+  gpsButton.disabled = true;
+  gpsStatus.textContent = 'Checking your location. Only the suggested zone is saved with your report.';
+  navigator.geolocation.getCurrentPosition(({ coords }) => {
+    gpsButton.disabled = false;
+    if (lake !== currentLake) return;
+    const suggested = nearestZone(lake, coords);
+    if (!suggested) {
+      gpsStatus.textContent = 'GPS is too far from this lake or too imprecise. Choose a zone manually.';
+      return;
+    }
+    zone.value = suggested.id;
+    zone.dispatchEvent(new Event('change', { bubbles: true }));
+    gpsStatus.textContent = 'Suggested zone is ' + suggested.name + '. Check the map and adjust if needed.';
+  }, () => {
+    gpsButton.disabled = false;
+    if (lake === currentLake) gpsStatus.textContent = 'Location was unavailable. Choose a zone from the map or the list.';
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+});
+
 async function loadHistory() {
+  const lake = currentLake;
   try {
-    const items = await getJson('/api/reports');
+    const items = await getJson(lakeEndpoint('/api/reports'));
+    if (lake !== currentLake) return;
     reports.replaceChildren();
     historyStatus.hidden = items.length > 0;
     historyStatus.textContent = 'Saved observations will appear here.';
@@ -268,6 +395,7 @@ async function loadHistory() {
       const id = document.createElement('p');
       id.textContent = item.id;
       detail.append(title, id);
+      appendReportContext(detail, item);
       for (const detection of item.detections) {
         const cue = document.createElement('p');
         cue.textContent = categoryLabels[detection.category] + ' — ' + detection.cue;
@@ -289,7 +417,7 @@ async function loadHistory() {
           try {
             const updated = await getJson('/api/reports/' + item.id + '/retry', { method: 'POST' });
             setStatus(statusLabels[updated.status], updated.status === 'needs_review' ? 'error' : 'success');
-            await Promise.all([loadHistory(), loadHotspots()]);
+            await refreshDashboard();
           } catch (error) {
             setStatus(error.message, 'error');
             retry.disabled = false;
@@ -304,6 +432,7 @@ async function loadHistory() {
       reports.append(row);
     }
   } catch {
+    if (lake !== currentLake) return;
     historyStatus.hidden = false;
     historyStatus.textContent = 'Recent observations could not be loaded. Refresh to try again.';
   }
@@ -388,9 +517,10 @@ rehearsalButton.addEventListener('click', async () => {
     if (draftDialog.open) draftDialog.close();
     rehearsalButton.textContent = 'Restart rehearsal';
     feedback.textContent = 'North Inlet is on Watch. Select “Foam from a second view” and save it at the same zone.';
+    if (currentLake.id !== 'demo-lake') await setLake('demo-lake');
     zone.value = 'north-inlet';
     zone.dispatchEvent(new Event('change', { bubbles: true }));
-    await Promise.all([loadHistory(), loadHotspots()]);
+    await refreshDashboard();
   } catch (error) {
     feedback.textContent = error.message;
   } finally {
@@ -417,7 +547,7 @@ form.addEventListener('submit', async event => {
   submit.disabled = true;
   submit.textContent = 'Saving…';
   setStatus('');
-  const controls = [...form.elements].filter(control => control !== submit && !control.disabled);
+  const controls = [...form.elements, lakeSelect].filter(control => control !== submit && !control.disabled);
   for (const control of [...controls, ...markers.children]) control.disabled = true;
   try {
     const { result, error } = await preparedPhoto;
@@ -428,6 +558,7 @@ form.addEventListener('submit', async event => {
     const report = await getJson('/api/reports', { method: 'POST', body: payload });
     if (revision === previewRevision) {
       form.reset();
+      zone.value = report.zoneId;
       photoInput.required = true;
       ++previewRevision;
       clearPreview();
@@ -436,7 +567,7 @@ form.addEventListener('submit', async event => {
       requestId = crypto.randomUUID();
     }
     setStatus('Observation saved. ' + statusLabels[report.status] + '. Report ID ' + report.id, 'success');
-    await Promise.all([loadHistory(), loadHotspots()]);
+    await refreshDashboard();
   } catch (error) {
     setStatus(error.message || 'The report could not be saved. Try again.', 'error');
   } finally {
@@ -447,6 +578,6 @@ form.addEventListener('submit', async event => {
 });
 
 updateTimestamp();
-loadMode().then(() => Promise.all([loadZones().then(loadHotspots), loadHistory()]))
+loadMode().then(loadLakes)
   .catch(() => setStatus('The demo could not be loaded. Refresh to try again.', 'error'));
 

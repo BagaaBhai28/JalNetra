@@ -50,6 +50,14 @@ The current production site was deployed directly from this repository's source.
 
 The Supabase migration in `supabase/migrations` provisions lake-scoped memberships, report storage, and a private evidence bucket for the field pilot. Vercel exposes a read-only readiness check at `/api/pilot/status` and authenticated report reads at `/api/pilot/reports`. These routes use `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The public rehearsal keeps its own data. Pilot sign-in and a shared dashboard remain open in the implementation roadmap.
 
+### Bengaluru lake maps and water readings
+
+Choose **Ulsoor Lake** or **Sankey Tank** to open their OpenStreetMap basemap and select an approximate reporting sector. The lake locations were checked against the CPCB water-quality monitoring station list. Reporting sectors are application-defined and approximate.
+
+**Suggest zone from GPS** works when the browser can obtain an accurate location near the selected lake. The app saves the selected sector, while GPS coordinates stay in the browser. Manual zone selection is available. The illustrative Demo Lake stays available offline and uses labelled sample images.
+
+**Water readings** shows separately plotted pH and temperature measurements, a zone filter, and a chronological table for up to 100 observations from the last 30 days. Report and hotspot cards show submitted readings and notes. Entries distinguish citizen-reported values from rehearsal examples. Real lake reports in this deployment belong to the browser session. The shared Supabase intake remains part of the field pilot.
+
 ## What the project solves
 
 Lake observations often arrive as isolated photos or messages. To follow up, a civic operator needs a location, an observation time, and a way to connect related reports. JalNetra keeps those details together and shows exactly which reports support an inspection request.

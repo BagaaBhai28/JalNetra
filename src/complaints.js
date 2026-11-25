@@ -37,7 +37,8 @@ function generatedText(mode, category, evidence) {
     const readings = [];
     if (report.ph !== null) readings.push('pH ' + report.ph);
     if (report.temperatureC !== null) readings.push(report.temperatureC + ' °C');
-    if (readings.length) lines.push('  Citizen-reported readings: ' + readings.join(', '));
+    if (readings.length) lines.push((report.readingSource === 'rehearsal' ?
+      '  Rehearsal sample readings: ' : '  Citizen-reported readings: ') + readings.join(', '));
   }
   lines.push('', 'Please review the observations and share any inspection findings.');
   return lines.join('\n');

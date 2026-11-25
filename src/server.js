@@ -7,24 +7,24 @@ import { pathToFileURL } from 'node:url';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
 import { claimAttempt, runAttempt, transact } from './analysis.js';
 import { hotspotDashboard } from './hotspots.js';
+import { findLake, lakes } from './lakes.js';
+import { waterReadings } from './readings.js';
 import { createDraft, exportDraft, getDraft, updateDraft } from './complaints.js';
 import { resetRehearsal } from './rehearsal.js';
 import { createOpenAiVision, createReplayVision, fingerprintPhoto, getSample, sampleList, categories } from './vision.js';
 
-const zones = [
-  ['north-inlet', 'North Inlet', .45, .24],
-  ['east-shore', 'East Shore', .73, .45],
-  ['south-bank', 'South Bank', .46, .75],
-];
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/lake-map.js', ['lake-map.js', 'text/javascript; charset=utf-8']],
+  ['/readings.js', ['readings.js', 'text/javascript; charset=utf-8']],
 ]);
 const headers = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
-  'Content-Security-Policy': "default-src 'self'; img-src 'self' blob:; style-src 'self'; object-src 'none'; frame-ancestors 'none'",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: https://tile.openstreetmap.org; style-src 'self'; object-src 'none'; frame-ancestors 'none'",
 };
 class InputError extends Error {
   constructor(status, code, message) {
@@ -58,9 +58,14 @@ function openDatabase(path) {
     } else if (version !== 1) {
       throw new Error('Unsupported JalNetra database schema version.');
     }
-    const seed = db.prepare(`INSERT INTO zone (id, lake_name, name, marker_x, marker_y)
-      VALUES (?, 'Demo Lake', ?, ?, ?) ON CONFLICT(id) DO NOTHING`);
-    for (const zone of zones) seed.run(...zone);
+    const seed = db.prepare(`INSERT INTO zone (id, lake_name, name, latitude, longitude, marker_x, marker_y)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`);
+    for (const lake of lakes) {
+      for (const zone of lake.zones) {
+        seed.run(zone.id, lake.name, zone.name, zone.latitude ?? null, zone.longitude ?? null,
+          zone.markerX ?? .5, zone.markerY ?? .5);
+      }
+    }
     db.exec('COMMIT');
     return db;
   } catch (error) {
@@ -143,7 +148,7 @@ async function validateReport(req, db) {
     throw new InputError(400, 'INVALID_ZONE', 'Choose a listed shoreline zone.');
   }
   const requestId = stringField(form, 'requestId');
-  if (!/^[a-z0-9_-]{12,80}$/i.test(requestId)) {
+  if (!/^[a-z0-9_-]{12,80}$/i.test(requestId) || requestId === 'rehearsal-first-report') {
     throw new InputError(400, 'INVALID_REQUEST_ID', 'Start the report again to get a new request ID.');
   }
   const timestamp = stringField(form, 'observedAt');
@@ -159,6 +164,12 @@ async function validateReport(req, db) {
   if (note.length > 500) throw new InputError(400, 'NOTE_TOO_LONG', 'Keep the note to 500 characters.');
   const ph = numericField(form, 'ph', 'pH');
   const temperature = numericField(form, 'temperatureC', 'temperature');
+  if (ph !== null && (ph < 0 || ph > 14)) {
+    throw new InputError(400, 'INVALID_READING', 'Enter a pH between 0 and 14.');
+  }
+  if (temperature !== null && (temperature < -20 || temperature > 100)) {
+    throw new InputError(400, 'INVALID_READING', 'Enter a temperature between -20 and 100 °C.');
+  }
   const width = Number(stringField(form, 'photoWidth'));
   const height = Number(stringField(form, 'photoHeight'));
   const photo = form.get('photo');
@@ -179,9 +190,10 @@ async function validateReport(req, db) {
   return { zoneId, requestId, observedAt, note, ph, temperature, width, height, pixels, hash, fingerprint };
 }
 
-const reportFields = `r.id, r.data_mode AS dataMode, r.zone_id AS zoneId, z.name AS zoneName,
+const reportFields = `r.id, r.data_mode AS dataMode, r.zone_id AS zoneId, z.name AS zoneName, z.lake_name AS lakeName,
   r.observed_at AS observedAt, r.submitted_at AS submittedAt, r.note, r.ph,
-  r.temperature_c AS temperatureC, r.current_attempt AS attempt, COALESCE(a.status, 'pending') AS status,
+  r.temperature_c AS temperatureC, CASE WHEN r.request_id = 'rehearsal-first-report' THEN 'rehearsal' ELSE 'citizen' END AS readingSource,
+  r.current_attempt AS attempt, COALESCE(a.status, 'pending') AS status,
   a.source AS analysisSource, a.review_reason AS reviewReason, a.expires_at AS analysisExpiresAt`;
 function reportView(db, row, vision) {
   const { attempt, analysisExpiresAt, ...report } = row;
@@ -236,7 +248,7 @@ export function createApp({
     LEFT JOIN analysis_attempt a ON a.report_id = r.id AND a.attempt = r.current_attempt`;
   const find = db.prepare(`SELECT ${reportFields} ${joined} WHERE r.id = ? AND r.data_mode = ?`);
   const list = db.prepare(`SELECT ${reportFields} ${joined}
-    WHERE r.data_mode = ? AND (? IS NULL OR r.zone_id = ?)
+    WHERE r.data_mode = ? AND (? IS NULL OR r.zone_id = ?) AND (? IS NULL OR z.lake_name = ?)
     ORDER BY r.submitted_at DESC, r.id DESC LIMIT 25`);
   const server = createServer({ requestTimeout: 15000, headersTimeout: 10000 }, async (req, res) => {
     try {
@@ -265,16 +277,28 @@ export function createApp({
         const sample = getSample(pathname.slice('/api/demo/samples/'.length));
         if (sample) return respond(res, 200, sample.png, 'image/png');
       }
-      if (req.method === 'GET' && pathname === '/api/hotspots') {
-        return respond(res, 200, hotspotDashboard(db, mode, Date.now()));
+      if (req.method === 'GET' && pathname === '/api/lakes') {
+        return respond(res, 200, lakes);
       }
-      if (req.method === 'GET' && pathname === '/api/zones') {
-        return respond(res, 200, db.prepare(`SELECT id, lake_name AS lakeName, name,
-          latitude, longitude, marker_x AS markerX, marker_y AS markerY FROM zone ORDER BY rowid`).all());
-      }
-      if (req.method === 'GET' && pathname === '/api/reports') {
+      if (req.method === 'GET' && ['/api/hotspots', '/api/zones', '/api/reports', '/api/readings'].includes(pathname)) {
+        const requested = searchParams.get('lakeId');
+        const lake = findLake(requested ?? 'demo-lake');
+        if (!lake) throw new InputError(400, 'INVALID_LAKE', 'Choose a listed lake.');
         const zoneId = searchParams.get('zoneId');
-        return respond(res, 200, list.all(mode, zoneId, zoneId).map(row => reportView(db, row, vision)));
+        if (pathname === '/api/hotspots') return respond(res, 200, hotspotDashboard(db, mode, Date.now(), lake.name));
+        if (pathname === '/api/zones') {
+          return respond(res, 200, lake.zones.map(item => ({ ...item, lakeName: lake.name,
+            latitude: item.latitude ?? null, longitude: item.longitude ?? null })));
+        }
+        if (pathname === '/api/readings') {
+          if (zoneId && !lake.zones.some(item => item.id === zoneId)) {
+            throw new InputError(400, 'INVALID_ZONE', 'Choose a shoreline zone in this lake.');
+          }
+          return respond(res, 200, waterReadings(db, mode, lake, zoneId, Date.now()));
+        }
+        const lakeName = requested ? lake.name : null;
+        return respond(res, 200, list.all(mode, zoneId, zoneId, lakeName, lakeName)
+          .map(row => reportView(db, row, vision)));
       }
       if (req.method === 'POST' && pathname === '/api/reports') {
         const report = await validateReport(req, db);

@@ -17,7 +17,7 @@
     <section class="intro" aria-labelledby="title">
       <p class="eyebrow">LAKE MONITORING</p>
       <h1 id="title">Report a shoreline observation</h1>
-      <p>Choose a zone and add a photo to record what you saw at Demo Lake.</p>
+      <p>Choose a lake and shoreline zone, then add a photo and any readings you collected.</p>
     </section>
     <section id="rehearsal-tools" class="rehearsal" aria-label="Demo rehearsal" hidden>
       <button id="restart-rehearsal" class="secondary" type="button">Start rehearsal</button>
@@ -25,9 +25,14 @@
     </section>
     <div class="workspace">
       <section class="card map-card" aria-labelledby="map-title">
-        <div class="card-head"><div><h2 id="map-title">Demo Lake</h2><p>Shoreline zone map</p></div><span class="tag">Illustrative</span></div>
-        <div class="map">
-          <svg viewBox="0 0 500 320" preserveAspectRatio="none" aria-hidden="true">
+        <div class="card-head"><div><h2 id="map-title">Demo Lake</h2><p>Shoreline zone map</p></div><span id="map-kind" class="tag">Illustrative</span></div>
+        <div class="map-controls">
+          <div><label for="lake-select">Lake</label><select id="lake-select"></select></div>
+          <button id="gps-zone" class="secondary" type="button" hidden>Suggest zone from GPS</button>
+        </div>
+        <div class="map" id="lake-map">
+          <div id="map-tiles" class="map-tiles" aria-hidden="true" hidden></div>
+          <svg id="illustrative-map" viewBox="0 0 500 320" preserveAspectRatio="none" aria-hidden="true">
             <defs><pattern id="grid" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" stroke="#57897c" stroke-opacity=".14" fill="none"/></pattern></defs>
             <rect width="500" height="320" fill="url(#grid)"/>
             <path d="M-10 93C76 44 108 83 167 44S320 10 376 41 423 71 518 48M-12 270C73 218 101 285 192 296S364 302 411 259 473 258 522 236" class="contour"/>
@@ -38,8 +43,10 @@
             <text x="453" y="245" text-anchor="middle" class="north-label">N</text>
           </svg>
           <div id="map-zones" class="map-zones" aria-label="Select a zone on the map"></div>
+          <a id="map-attribution" class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" hidden>© OpenStreetMap contributors</a>
         </div>
         <p id="map-help" class="map-help">Select a marker to see that zone’s evidence or choose a zone in the form.</p>
+        <p id="gps-status" class="map-help" role="status" hidden></p>
         <section class="evidence-panel" aria-labelledby="evidence-title">
           <h3 id="evidence-title">Zone evidence</h3>
           <div id="evidence-content" aria-live="polite"></div>
@@ -66,8 +73,8 @@
           <details>
             <summary>Optional readings and notes</summary>
             <div class="readings">
-              <div><label for="ph">pH</label><input id="ph" name="ph" type="number" step="any"></div>
-              <div><label for="temperature">Temperature (°C)</label><input id="temperature" name="temperatureC" type="number" step="any"></div>
+              <div><label for="ph">pH</label><input id="ph" name="ph" type="number" min="0" max="14" step="any"></div>
+              <div><label for="temperature">Temperature (°C)</label><input id="temperature" name="temperatureC" type="number" min="-20" max="100" step="any"></div>
             </div>
             <label for="note">Notes</label>
             <textarea id="note" name="note" maxlength="500" rows="2"></textarea>
@@ -77,6 +84,24 @@
         </form>
       </section>
     </div>
+    <section class="card history" aria-labelledby="readings-title">
+      <div class="card-head">
+        <div><h2 id="readings-title">Water readings</h2><p>Last 30 days · up to 100 observations · IST</p></div>
+        <div class="reading-filter"><label for="reading-zone">Reading zone</label><select id="reading-zone"></select></div>
+      </div>
+      <p id="reading-status" class="readings-status" role="status"></p>
+      <div class="reading-charts">
+        <section aria-labelledby="ph-title"><h3 id="ph-title">pH</h3><canvas id="ph-chart" width="520" height="186" role="img" hidden></canvas><p id="ph-empty">No pH readings in this view.</p></section>
+        <section aria-labelledby="temp-title"><h3 id="temp-title">Temperature (°C)</h3><canvas id="temperature-chart" width="520" height="186" role="img" hidden></canvas><p id="temperature-empty">No temperature readings in this view.</p></section>
+      </div>
+      <div id="readings-table" class="readings-table" hidden>
+        <table>
+          <caption>Recorded water readings</caption>
+          <thead><tr><th scope="col">Observed (IST)</th><th scope="col">Zone</th><th scope="col">pH</th><th scope="col">Temperature (°C)</th><th scope="col">Source</th></tr></thead>
+          <tbody id="reading-rows"></tbody>
+        </table>
+      </div>
+    </section>
     <dialog id="draft-dialog" aria-labelledby="draft-title">
       <div class="card-head">
         <div><h2 id="draft-title">Civic complaint draft</h2><p>Review the wording and verify the recipient.</p></div>

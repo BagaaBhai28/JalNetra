@@ -29,7 +29,14 @@ p { margin: 0; }
 .card-head h2 { margin: 0; font-size: 1.12rem; letter-spacing: -.02em; }
 .card-head p, .hint, .map-help, .upload p, .history p { color: var(--muted); font-size: .83rem; margin-top: 3px; }
 .tag { background: #ebf2e5; border-radius: 20px; padding: 5px 9px; font-size: .72rem; font-weight: 650; }
-.map { position: relative; aspect-ratio: 500 / 320; background: #dce9d9; }
+.map-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 10px 14px; padding: 10px 19px; }
+.map-controls > div { flex: 1 1 170px; max-width: 310px; }
+.map-controls button { margin-bottom: 3px; }
+.map { position: relative; aspect-ratio: 500 / 320; background: #dce9d9; overflow: hidden; }
+.map [hidden] { display: none; }
+.map-tiles { position: absolute; inset: 0; }
+.map-tiles img { position: absolute; max-width: none; }
+.map-attribution { position: absolute; right: 0; bottom: 0; background: #fffef7; padding: 2px 6px; color: #163a31; font-size: .7rem; }
 .map svg, .map-zones { position: absolute; height: 100%; width: 100%; inset: 0; }
 .contour { stroke: #74a28d; stroke-width: 1; fill: none; }
 .shore { fill: #93ba9e; }
@@ -87,6 +94,18 @@ dialog textarea { min-height: 170px; }
 .draft-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .draft-actions button { padding: 7px 10px; margin: 0; }
 .history { margin-top: 16px; }
+.reading-filter { min-width: 130px; }
+.reading-filter select { font-size: .86rem; }
+.readings-status { padding: 10px 19px 0; }
+.reading-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 295px), 1fr)); gap: 10px; padding: 10px 19px; }
+.reading-charts > section { border: 1px solid #dce9df; padding: 8px 10px; border-radius: 9px; }
+.reading-charts h3 { margin: 0; font-size: .9rem; }
+.reading-charts canvas { width: 100%; height: auto; }
+.readings-table { overflow-x: auto; padding: 0 19px 12px; }
+.readings-table table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+.readings-table th, .readings-table td { border-top: 1px solid #dce9df; padding: 6px; text-align: left; }
+.readings-table caption { color: #435f55; padding: 4px 6px; text-align: left; font-size: .78rem; }
+.reading-detail { font-weight: 650; }
 #history-status { padding: 10px 19px; }
 .report-list { margin: 0; padding: 0 19px; list-style: none; }
 .report-list li { border-top: 1px solid var(--line); display: grid; grid-template-columns: 52px 1fr auto; align-items: center; min-width: 0; gap: 10px; padding: 9px 0; }
