@@ -185,7 +185,7 @@ test('pilot complaint rechecks lake access and current Priority evidence before 
   assert.match(draft.draftText, /report-one.+IST/);
   assert.match(draft.draftText, /report-two.+IST/);
   assert.match(draft.draftText, /Citizen-reported readings: pH 7\.2/);
-  assert.match(draft.draftText, /Citizen-reported readings: 25 °C/);
+  assert.match(draft.draftText, /Citizen-reported readings: 25 �C/);
   assert.equal(draft.evidence.length, 2);
   reports = [first, { ...second, events: [{ action: 'dismiss', created_at: recent }] }];
   assert.equal((await generate()).status, 409);
@@ -332,4 +332,23 @@ test('citizen conditions require sign-in and return aggregate lake signals', asy
   assert.equal((await handle(new Request(host + '/api/pilot/conditions'))).status, 401);
   const response = await handle(new Request(host + '/api/pilot/conditions', { headers: { Authorization: 'Bearer demo.token.value' } }));
   assert.deepEqual(await response.json(), { signals });
+});
+
+test('pilot sign-in explains rejected credentials and unconfirmed email', async () => {
+  const hostHeaders = { Origin: host, 'Content-Type': 'application/json' };
+  const login = () => new Request(host + '/api/pilot/signin', {
+    method: 'POST', headers: hostHeaders, body: JSON.stringify({ email: ' citizen@example.invalid ', password: 'a-test-password' }),
+  });
+  for (const [error_code, expected] of [
+    ['invalid_credentials', 'INVALID_CREDENTIALS'], ['email_not_confirmed', 'EMAIL_NOT_CONFIRMED'],
+  ]) {
+    const handle = createPilotHandler({ ...settings, async request(url, options) {
+      assert.equal(url.pathname, '/auth/v1/token');
+      assert.equal(JSON.parse(options.body).email, 'citizen@example.invalid');
+      return Response.json({ error_code }, { status: 400 });
+    } });
+    const response = await handle(login());
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error.code, expected);
+  }
 });
