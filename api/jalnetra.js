@@ -52,6 +52,7 @@ export default {
       url: process.env.SUPABASE_URL,
       publishableKey: process.env.SUPABASE_PUBLISHABLE_KEY,
       analysisWriteToken: process.env.PILOT_ANALYSIS_WRITE_TOKEN,
+      guestWriteToken: process.env.PILOT_GUEST_WRITE_TOKEN,
       apiKey,
       model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
       gateway: !process.env.OPENAI_API_KEY,
