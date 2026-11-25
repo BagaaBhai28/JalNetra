@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>JalNetra · Shared lake reporting</title>
+  <title>JalNetra � Shared lake reporting</title>
   <link rel="stylesheet" href="/style.css?v=lake-conditions">
-  <script type="module" src="/pilot-app.js?v=lake-conditions"></script>
+  <script type="module" src="/pilot-app.js?v=citizen-signup"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
@@ -18,8 +18,16 @@
       <form id="pilot-login">
       <label for="pilot-email">Email</label><input type="email" id="pilot-email" name="email" required maxlength="254" autocomplete="email">
       <label for="pilot-password">Password</label><input type="password" id="pilot-password" name="password" required minlength="8" maxlength="128" autocomplete="current-password">
-      <div class="pilot-actions"><button class="primary" type="submit" value="signin">Citizen sign in</button><button class="secondary" type="submit" value="signup">Create citizen account</button><button class="inline-action" data-reset-password type="button">Forgot password?</button></div>
+      <div class="pilot-actions"><button class="primary" type="submit" value="signin">Citizen sign in</button><button class="inline-action" data-reset-password type="button">Forgot password?</button></div>
       </form>
+      <details id="citizen-signup" class="evidence-panel">
+        <summary>Create citizen account</summary>
+        <form id="pilot-signup">
+          <label for="signup-email">Email</label><input type="email" id="signup-email" name="email" required maxlength="254" autocomplete="email">
+          <label for="signup-password">New password</label><input type="password" id="signup-password" name="password" required minlength="8" maxlength="128" autocomplete="new-password">
+          <button class="primary" type="submit" value="signup">Sign up as a citizen</button>
+        </form>
+      </details>
     </section>
     <section class="card" id="pilot-operator" aria-labelledby="pilot-operator-title">
       <div class="card-head"><div><h2 id="pilot-operator-title">Operator sign in</h2><p>Review reports for your assigned lakes.</p></div></div>
@@ -76,7 +84,7 @@
           <label for="pilot-observed">Observed at (device time)</label><input type="datetime-local" id="pilot-observed" required>
           <label for="pilot-photo">Photo (JPEG or PNG, up to 5 MB)</label><input type="file" id="pilot-photo" accept="image/jpeg,image/png" required>
           <p class="hint">Water readings are optional. Enter values only if you measured them. Lake operators can review the photo and request automated image analysis.</p>
-          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (°C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
+          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (�C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
           <label for="pilot-note">Optional notes</label><textarea id="pilot-note" name="note" maxlength="500" rows="2"></textarea>
           <button class="primary" type="submit">Save and analyze photo</button>
           <div id="pilot-preliminary" aria-live="polite"></div>
@@ -99,7 +107,7 @@
       <div class="map" id="pilot-hotspot-map" hidden>
         <div class="map-tiles" id="pilot-hotspot-tiles" aria-hidden="true"></div>
         <div class="map-zones" id="pilot-hotspot-markers" aria-label="Shoreline sectors"></div>
-        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a>
+        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">c OpenStreetMap contributors</a>
       </div>
       <div class="evidence-panel"><div class="pilot-actions" id="pilot-hotspot-zones" aria-label="Shoreline sectors"></div><div id="pilot-hotspot-evidence" aria-live="polite"></div></div>
     </section>
