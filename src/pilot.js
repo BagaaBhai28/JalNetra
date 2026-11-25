@@ -1,21 +1,33 @@
+import { createHmac, randomInt } from 'node:crypto';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
-import { createOpenAiVision, categories } from './vision.js';
+import { createOpenAiVision, categories, getSample } from './vision.js';
 import { lakes } from './lakes.js';
 import { groupPilotHotspots, pilotHotspotWindowMs } from './pilot-hotspots.js';
 import { createPilotComplaint } from './complaints.js';
 
 const routes = {
   status: 'GET', signup: 'POST', signin: 'POST', refresh: 'POST', recover: 'POST', password: 'POST', signout: 'POST', account: 'GET',
-  catalog: 'GET', enroll: 'POST', members: 'GET POST', reports: 'GET', upload: 'POST', concerns: 'GET POST',
-  conditions: 'GET', photo: 'GET', analyze: 'POST', preliminary: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
+  guest: 'POST', catalog: 'GET', enroll: 'POST', members: 'GET POST', reports: 'GET', upload: 'POST', concerns: 'GET POST',
+  'demo-concern': 'POST', 'demo-run': 'GET POST', conditions: 'GET', photo: 'GET', analyze: 'POST', preliminary: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
 };
 const validUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+const demoCases = ['foam-inlet', 'algae', 'dumping'];
 const tokenPattern = /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/i;
 const bucket = 'jalnetra-pilot-evidence';
 const photoColumns = 'id,lake_id,zone_id,observed_at,created_at,note,ph,temperature_c,photo_path';
 const reportSelect = photoColumns + ',reporter_id,photo_hash,events:pilot_review_events!pilot_review_events_lake_id_report_id_fkey(id,actor_id,action,category,note,duplicate_of,model_output,created_at)';
 const jsonHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const reply = (status, body) => Response.json(body, { status, headers: jsonHeaders });
+
+function describeDemo(run) {
+  const sample = getSample(run?.scenario);
+  if (!sample || !demoCases.includes(run.scenario)) return null;
+  return {
+    id: run.id, createdAt: run.created_at, confirmedAt: run.confirmed_at,
+    lake: 'Devanahalli Lake', sector: 'North sector', title: sample.title,
+    photoUrl: '/api/demo/samples/' + run.scenario, cue: sample.result.detections[0].cue,
+  };
+}
 
 class PilotError extends Error {
   constructor(status, code, message) {
@@ -58,7 +70,7 @@ export function differenceHash(width, height, pixels) {
   return bits.toString(16).padStart(16, '0');
 }
 
-export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken } = {}) {
+export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken, guestWriteToken } = {}) {
   const configured = /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url ?? '') &&
     /^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey ?? '');
   const vision = apiKey && model ? createOpenAiVision({ apiKey, model, gateway, request: visionRequest }) : null;
@@ -71,7 +83,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
     if (!Object.hasOwn(routes, action)) return null;
     if (!routes[action].split(' ').includes(input.method)) return reply(405, { error: { code: 'METHOD_NOT_ALLOWED' } });
     const bearer = input.headers.get('authorization');
-    const authAction = ['status', 'signup', 'signin', 'refresh', 'recover'].includes(action);
+    const authAction = ['status', 'signup', 'signin', 'refresh', 'recover', 'guest', 'catalog', 'conditions', 'demo-concern'].includes(action);
     if (!authAction && !tokenPattern.test(bearer ?? '')) {
       return reply(401, { error: { code: 'PILOT_SIGN_IN_REQUIRED', message: 'Sign in to continue.' } });
     }
@@ -151,6 +163,34 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
           return reply(200, { ready: true, provider: 'supabase', schemaVersion: 2, visionConfigured: Boolean(vision) });
         }
         throw new Error('Unexpected schema');
+      }
+      if (action === 'demo-concern') {
+        requireValue(guestWriteToken, 'DEMO_UNAVAILABLE', 'Demo reporting is temporarily unavailable.', 503);
+        const row = await send('/rest/v1/rpc/pilot_start_demo', {
+          p_token: guestWriteToken, p_scenario: demoCases[randomInt(demoCases.length)],
+        });
+        requireValue(!row?.limited, 'DEMO_RATE_LIMIT', 'Too many demo concerns were created today.', 429);
+        const concern = describeDemo(row);
+        requireValue(concern, 'DEMO_UNAVAILABLE', 'Demo reporting is temporarily unavailable.', 503);
+        return reply(201, { concern });
+      }
+      if (action === 'demo-run') {
+        const id = input.method === 'POST' ? (await jsonInput(input)).id : incoming.searchParams.get('id');
+        requireValue(typeof id === 'string' && validUuid.test(id), 'INVALID_DEMO', 'Choose a valid demo concern.');
+        const row = await send('/rest/v1/rpc/pilot_demo_run', { p_id: id, p_confirm: input.method === 'POST' });
+        const concern = describeDemo(row);
+        requireValue(concern, 'DEMO_NOT_FOUND', 'This demo concern is unavailable or expired.', 404);
+        return reply(200, { concern });
+      }
+      if (action === 'guest') {
+        requireValue(guestWriteToken, 'GUEST_UNAVAILABLE', 'Guest reporting is temporarily unavailable.', 503);
+        const network = input.headers.get('x-vercel-forwarded-for')?.slice(0, 120) ?? 'unknown';
+        const networkKey = createHmac('sha256', guestWriteToken).update(network).digest('hex');
+        const guest = await send('/rest/v1/rpc/pilot_create_guest', { p_token: guestWriteToken, p_network: networkKey });
+        requireValue(!guest?.limited, 'GUEST_RATE_LIMIT', 'Too many guest sessions were started recently. Try again later.', 429);
+        requireValue(guest?.email && guest?.password, 'GUEST_UNAVAILABLE', 'Guest reporting is temporarily unavailable.', 503);
+        const session = await send('/auth/v1/token?grant_type=password', { email: guest.email, password: guest.password });
+        return reply(201, { access_token: session.access_token, refresh_token: session.refresh_token });
       }
       if (action === 'recover') {
         const { email } = await jsonInput(input);
