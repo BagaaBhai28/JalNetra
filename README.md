@@ -10,13 +10,6 @@ A resident photographs a shoreline issue and selects a zone. JalNetra identifies
 
 **Current status** — Hackathon design and implementation plan with a starter SQLite schema. The runnable web app is planned.
 
-| Scope | Plan |
-|---|---|
-| People and time | Two developers, eight working hours |
-| Demo environment | One laptop, one demo lake, three preset shoreline zones |
-| Planned stack | Node.js, Express, SQLite, and browser-native HTML, CSS, and JavaScript |
-| Demo outcome | A second distinct photo raises a hotspot and enables an evidence-linked complaint draft |
-
 ## What the project solves
 
 Lake observations often arrive as isolated photos or messages. To follow up, a civic operator needs a location, an observation time, and a way to connect related reports. JalNetra keeps those details together and shows exactly which reports support an inspection request.
