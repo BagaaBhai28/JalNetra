@@ -585,7 +585,7 @@ function setLake(id) {
   recentReportCount = undefined;
   document.querySelector('#map-help').textContent = geographic
     ? 'Click a shoreline sector or its marker to set the location for your next upload.'
-    : 'Select a marker to see that zone's evidence or choose a zone in the form.';
+    : 'Select a marker to see the evidence for that zone or choose a zone in the form.';
   document.querySelector('#map-title').textContent = selected.name;
   document.querySelector('#map-kind').textContent = geographic ? 'Approximate zones' : 'Illustrative';
   document.querySelector('#illustrative-map').toggleAttribute('hidden', geographic);
@@ -851,4 +851,67 @@ rehearsalButton.addEventListener('click', async () => {
     currentDraft = undefined;
     if (draftDialog.open) draftDialog.close();
     rehearsalButton.textContent = 'Restart rehearsal';
-    feedback.textContent = 'North Inlet is on Watch. Select 
+    feedback.textContent = 'North Inlet is on Watch. Select “Foam from a second view” and save it at the same zone.';
+    if (currentLake.id !== 'demo-lake') await setLake('demo-lake');
+    zone.value = 'north-inlet';
+    zone.dispatchEvent(new Event('change', { bubbles: true }));
+    await refreshDashboard();
+  } catch (error) {
+    feedback.textContent = error.message;
+  } finally {
+    rehearsalButton.disabled = false;
+  }
+});
+
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (submit.disabled) return;
+  if (!selectedFile) {
+    setStatus('Choose a photo or a labelled demo sample.', 'error');
+    return;
+  }
+  const payload = new FormData(form);
+  const revision = previewRevision;
+  const observedAt = new Date(times.value);
+  if (!Number.isFinite(observedAt.valueOf())) {
+    setStatus('Choose a valid observation time.', 'error');
+    return;
+  }
+  payload.set('requestId', requestId);
+  payload.set('observedAt', observedAt.toISOString());
+  submit.disabled = true;
+  submit.textContent = 'Saving…';
+  setStatus('');
+  const controls = [...form.elements, lakeSelect].filter(control => control !== submit && !control.disabled);
+  for (const control of [...controls, ...markers.children]) control.disabled = true;
+  try {
+    const { result, error } = await preparedPhoto;
+    if (error) throw error;
+    payload.set('photo', result.pixels, 'photo.rgb');
+    payload.set('photoWidth', String(result.width));
+    payload.set('photoHeight', String(result.height));
+    const report = await getJson('/api/reports', { method: 'POST', body: payload });
+    if (revision === previewRevision) {
+      form.reset();
+      zone.value = report.zoneId;
+      photoInput.required = true;
+      ++previewRevision;
+      clearPreview();
+      highlightZone();
+      updateTimestamp();
+      requestId = crypto.randomUUID();
+    }
+    setStatus('Observation saved. ' + statusLabels[report.status] + '. Report ID ' + report.id, 'success');
+    await refreshDashboard();
+  } catch (error) {
+    setStatus(error.message || 'The report could not be saved. Try again.', 'error');
+  } finally {
+    for (const control of [...controls, ...markers.children]) control.disabled = false;
+    submit.disabled = false;
+    submit.textContent = 'Save observation';
+  }
+});
+
+updateTimestamp();
+loadMode().then(loadLakes)
+  .catch(() => setStatus('The demo could not be loaded. Refresh to try again.', 'error'));
