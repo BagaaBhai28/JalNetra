@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>JalNetra � Shared lake reporting</title>
+  <title>JalNetra — Shared lake reporting</title>
   <link rel="stylesheet" href="/style.css?v=operator-demo">
   <script type="module" src="/pilot-app.js?v=operator-demo"></script>
 </head>
@@ -68,7 +68,7 @@
           <label for="pilot-observed">Observed at (device time)</label><input type="datetime-local" id="pilot-observed" required>
           <label for="pilot-photo">Photo (JPEG or PNG, up to 5 MB)</label><input type="file" id="pilot-photo" accept="image/jpeg,image/png" required>
           <p class="hint">Water readings are optional. Enter values only if you measured them. Lake operators can review the photo and request automated image analysis.</p>
-          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (�C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
+          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (°C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
           <label for="pilot-note">Optional notes</label><textarea id="pilot-note" name="note" maxlength="500" rows="2"></textarea>
           <button class="primary" type="submit">Save and analyze photo</button>
           <div id="pilot-preliminary" aria-live="polite"></div>

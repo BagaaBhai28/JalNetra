@@ -185,7 +185,7 @@ test('pilot complaint rechecks lake access and current Priority evidence before 
   assert.match(draft.draftText, /report-one.+IST/);
   assert.match(draft.draftText, /report-two.+IST/);
   assert.match(draft.draftText, /Citizen-reported readings: pH 7\.2/);
-  assert.match(draft.draftText, /Citizen-reported readings: 25 �C/);
+  assert.match(draft.draftText, /Citizen-reported readings: 25 °C/);
   assert.equal(draft.evidence.length, 2);
   reports = [first, { ...second, events: [{ action: 'dismiss', created_at: recent }] }];
   assert.equal((await generate()).status, 409);
