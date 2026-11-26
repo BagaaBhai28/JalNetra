@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createOpenAiVision, createReplayVision, getSample } from '../src/vision.js';
+import { createGeminiVision, createOpenAiVision, createReplayVision, getSample } from '../src/vision.js';
 import { formFor, openApp } from '../test-support/http.js';
 import { sampleForm } from '../test-support/samples.js';
 
@@ -83,4 +83,19 @@ test('live adapter sends image data and schema to Responses and validates the re
   assert.equal(body.store, false);
   assert.equal(body.text.format.type, 'json_schema');
   assert.match(body.input[0].content[1].image_url, /^data:image\/png;base64,/);
+});
+
+test('Gemini sends the PNG and validates the structured shoreline assessment', async () => {
+  const png = getSample('foam-inlet').png;
+  const assessment = { imageQuality: 'usable', detections: [{ category: 'foam', cue: 'White froth' }] };
+  const adapter = createGeminiVision({ apiKey: 'test-key', request: async (url, options) => {
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    assert.equal(options.headers['x-goog-api-key'], 'test-key');
+    const { contents, generationConfig } = JSON.parse(options.body);
+    assert.deepEqual(contents[0].parts[1].inlineData, { mimeType: 'image/png', data: png.toString('base64') });
+    assert.equal(generationConfig.responseMimeType, 'application/json');
+    assert.deepEqual(generationConfig.responseJsonSchema.required, ['imageQuality', 'detections']);
+    return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(assessment) }] } }] });
+  } });
+  assert.deepEqual(await adapter.analyse({ png }), assessment);
 });

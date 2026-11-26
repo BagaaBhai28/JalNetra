@@ -1,6 +1,6 @@
 import { createHmac, randomInt } from 'node:crypto';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
-import { createOpenAiVision, categories, getSample, VisionError } from './vision.js';
+import { createGeminiVision, createOpenAiVision, categories, getSample, VisionError } from './vision.js';
 import { lakes } from './lakes.js';
 import { groupPilotHotspots, pilotHotspotWindowMs } from './pilot-hotspots.js';
 import { createPilotComplaint } from './complaints.js';
@@ -70,10 +70,11 @@ export function differenceHash(width, height, pixels) {
   return bits.toString(16).padStart(16, '0');
 }
 
-export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken, guestWriteToken, visionDiagnostics } = {}) {
+export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, geminiKey, visionRequest, analysisWriteToken, guestWriteToken, visionDiagnostics } = {}) {
   const configured = /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url ?? '') &&
     /^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey ?? '');
-  const vision = apiKey && model ? createOpenAiVision({ apiKey, model, gateway, request: visionRequest }) : null;
+  const vision = geminiKey ? createGeminiVision({ apiKey: geminiKey, request: visionRequest }) :
+    apiKey && model ? createOpenAiVision({ apiKey, model, gateway, request: visionRequest }) : null;
 
   return async function handle(input) {
     const incoming = new URL(input.url);
