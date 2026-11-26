@@ -70,7 +70,7 @@ export function differenceHash(width, height, pixels) {
   return bits.toString(16).padStart(16, '0');
 }
 
-export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken, guestWriteToken } = {}) {
+export function createPilotHandler({ url, publishableKey, request = fetch, apiKey, model, gateway, visionRequest, analysisWriteToken, guestWriteToken, visionDiagnostics } = {}) {
   const configured = /^https:\/\/[a-z0-9]+\.supabase\.co\/?$/.test(url ?? '') &&
     /^sb_publishable_[A-Za-z0-9_-]+$/.test(publishableKey ?? '');
   const vision = apiKey && model ? createOpenAiVision({ apiKey, model, gateway, request: visionRequest }) : null;
@@ -414,7 +414,10 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
           const reason = error instanceof VisionError ? error.message :
             error?.name === 'TimeoutError' ? 'The provider request timed out.' : 'The provider request failed.';
           console.warn('Pilot vision:', reason);
-          throw new PilotError(502, 'VISION_UNAVAILABLE', 'Real analysis failed. Retry or review this photo manually.');
+          return reply(502, { error: { code: 'VISION_UNAVAILABLE',
+            message: 'Real analysis failed. Retry or review this photo manually.',
+            ...(visionDiagnostics ? { diagnostic: reason } : {}),
+          } });
         }
         if (action === 'preliminary') {
           const saved = await send('/rest/v1/rpc/pilot_save_preliminary', {
