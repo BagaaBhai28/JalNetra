@@ -44,7 +44,8 @@ export default {
     const url = new URL(request.url);
     const route = url.pathname === '/api/jalnetra' ? url.searchParams.get('jalroute') : url.pathname.slice(5);
     if (!route?.startsWith('pilot/')) return hosted(request);
-    let apiKey = process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_API_KEY;
+    const openAiKey = process.env.OPENAI_API_KEY || process.env.openai_key;
+    let apiKey = openAiKey || process.env.AI_GATEWAY_API_KEY;
     if (!apiKey && ['pilot/status', 'pilot/analyze', 'pilot/preliminary'].includes(route)) {
       apiKey = await getVercelOidcToken().catch(() => undefined);
     }
@@ -55,8 +56,8 @@ export default {
       guestWriteToken: process.env.PILOT_GUEST_WRITE_TOKEN,
       visionDiagnostics: process.env.PILOT_VISION_DIAGNOSTICS === '1',
       apiKey,
-      model: process.env.JALNETRA_VISION_MODEL || (process.env.OPENAI_API_KEY ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
-      gateway: !process.env.OPENAI_API_KEY,
+      model: process.env.JALNETRA_VISION_MODEL || (openAiKey ? 'gpt-4.1-mini' : 'openai/gpt-4.1-mini'),
+      gateway: !openAiKey,
     });
     return (await pilot(request)) ?? hosted(request);
   },
