@@ -138,12 +138,12 @@ function complaintButton(lakeId, zoneId, category, version) {
     $('pilot-export-status').textContent = '';
     $('pilot-complaint-recipient').value = draft.recipient;
     $('pilot-complaint-text').value = draft.draftText;
-    $('pilot-complaint-routing').textContent = draft.localContact
+    $('pilot-complaint-routing').textContent = draft.routingNote ?? (draft.localContact
       ? 'The council is a local contact. Confirm jurisdiction before filing.'
-      : 'Confirm the responsible civic body and enter it before downloading.';
+      : 'Confirm the responsible civic body and enter it before downloading.');
     const links = $('pilot-complaint-links');
     links.replaceChildren();
-    for (const contact of [draft.localContact, draft.filing].filter(Boolean)) {
+    for (const contact of [draft.localContact, draft.filing, draft.routingSource].filter(Boolean)) {
       const link = el('a', contact.name);
       link.href = contact.url;
       link.target = '_blank';

@@ -1,8 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createReplayVision } from '../src/vision.js';
+import { createPilotComplaint } from '../src/complaints.js';
 import { openApp, postJson } from '../test-support/http.js';
 import { submitSample } from '../test-support/samples.js';
+
+test('Devanahalli dumping draft gives the scoped municipal waste route', () => {
+  const zone = { name: 'North sector' };
+  const lake = { name: 'Devanahalli Lake', slug: 'devanahalli-lake' };
+  const draft = createPilotComplaint(lake, zone, null, { category: 'dumping', evidence: [] });
+  assert.equal(draft.recipient, 'Devanahalli Town Municipal Council');
+  assert.match(draft.routingNote, /within town limits/);
+  assert.equal(new URL(draft.routingSource.url).hostname, 'saiindia.gov.in');
+  assert.equal(new URL(draft.filing.url).hostname, 'ipgrs.karnataka.gov.in');
+  assert.match(draft.draftText, /coordinate with the lake custodian/);
+  assert.equal(createPilotComplaint(lake, zone, null, { category: 'foam', evidence: [] }).routingNote, null);
+});
 
 test('complaints require a priority hotspot, preserve evidence, and export edits as text', async () => {
   const app = openApp(':memory:', { vision: createReplayVision() });

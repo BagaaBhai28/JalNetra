@@ -50,7 +50,15 @@ export function createPilotComplaint(lake, zone, point, group) {
     name: 'Devanahalli Town Municipal Council',
     url: 'https://bangalorerural.nic.in/en/public-utility/devanahalli-tmc/',
   } : null;
-  const filing = { name: 'Karnataka Janaspandana grievance portal', url: 'https://ipgrs.karnataka.gov.in/' };
+  const municipalDumping = localContact && group.category === 'dumping';
+  const routingNote = municipalDumping
+    ? 'Contact the council for municipal solid-waste inspection and cleanup within town limits. Confirm responsibility for the reported shoreline sector before filing.'
+    : null;
+  const routingSource = municipalDumping ? {
+    name: 'Devanahalli solid-waste responsibility (CAG audit)',
+    url: 'https://saiindia.gov.in/webroot/uploads/download_audit_report/2023/REPORT-3-ENGLISH-068a6cd1d278e17.59235279.pdf',
+  } : null;
+  const filing = { name: 'Karnataka Praja Seve grievance portal (iPGRS)', url: 'https://ipgrs.karnataka.gov.in/' };
   const lines = [
     'Subject: Request to inspect ' + issue + ' at ' + lake.name,
     '',
@@ -60,6 +68,7 @@ export function createPilotComplaint(lake, zone, point, group) {
   if (Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude)) {
     lines.push('Approximate reporting sector: ' + point.latitude.toFixed(5) + ', ' + point.longitude.toFixed(5));
   }
+  if (municipalDumping) lines.push('Please assess municipal solid-waste cleanup or coordinate with the lake custodian for the affected shoreline.');
   lines.push('', 'Supporting observations');
   for (const report of group.evidence) {
     lines.push('- ' + report.id + ' · ' + formatTime.format(new Date(report.observedAt)) + ' IST');
@@ -68,7 +77,8 @@ export function createPilotComplaint(lake, zone, point, group) {
     if (readings.length) lines.push('  Citizen-reported readings: ' + readings.join(', '));
   }
   lines.push('', 'Please share the inspection findings or forward this request to the responsible authority.');
-  return { recipient: localContact?.name ?? '', localContact, filing, draftText: lines.join('\n'), evidence: group.evidence };
+  return { recipient: localContact?.name ?? '', localContact, filing, routingNote, routingSource,
+    draftText: lines.join('\n'), evidence: group.evidence };
 }
 
 export function createDraft(db, mode, zoneId, category, now) {
