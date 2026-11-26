@@ -89,7 +89,7 @@ test('Gemini sends the PNG and validates the structured shoreline assessment', a
   const png = getSample('foam-inlet').png;
   const assessment = { imageQuality: 'usable', detections: [{ category: 'foam', cue: 'White froth' }] };
   const adapter = createGeminiVision({ apiKey: 'test-key', request: async (url, options) => {
-    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent');
+    assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent');
     assert.equal(options.headers['x-goog-api-key'], 'test-key');
     const { contents, generationConfig } = JSON.parse(options.body);
     assert.deepEqual(contents[0].parts[1].inlineData, { mimeType: 'image/png', data: png.toString('base64') });

@@ -136,7 +136,7 @@ export function createGeminiVision({ apiKey, request = fetch }) {
   return {
     source: 'live_model',
     async analyse({ png, signal }) {
-      const response = await request('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', {
+      const response = await request('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent', {
         method: 'POST',
         headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
         signal,
@@ -147,7 +147,7 @@ export function createGeminiVision({ apiKey, request = fetch }) {
           ] }],
           generationConfig: {
             responseMimeType: 'application/json', responseJsonSchema: resultSchema,
-            maxOutputTokens: 400, thinkingConfig: { thinkingBudget: 0 },
+            maxOutputTokens: 400, thinkingConfig: { thinkingLevel: 'minimal' },
           },
         }),
       });
