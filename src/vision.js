@@ -138,7 +138,12 @@ export function createOpenAiVision({ apiKey, model, request = fetch, gateway = f
           text: { format: { type: 'json_schema', name: 'lake_observation', schema: resultSchema, strict: true } },
         }),
       });
-      if (!response.ok) throw new VisionError(`The vision provider returned HTTP ${response.status}.`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = [body?.error?.code, body?.error?.type].find(value =>
+          typeof value === 'string' && /^[a-z][a-z0-9_]{2,63}$/.test(value));
+        throw new VisionError(`The vision provider returned HTTP ${response.status}${code ? ` (${code})` : ''}.`);
+      }
       const body = await response.json();
       const parts = (body.output ?? []).flatMap(item => item.content ?? []);
       const output = parts.find(item => item.type === 'output_text')?.text;
