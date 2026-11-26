@@ -1,6 +1,6 @@
 import { createHmac, randomInt } from 'node:crypto';
 import { encodePhoto, maxDimension, maxRgbBytes } from './photo.js';
-import { createOpenAiVision, categories, getSample } from './vision.js';
+import { createOpenAiVision, categories, getSample, VisionError } from './vision.js';
 import { lakes } from './lakes.js';
 import { groupPilotHotspots, pilotHotspotWindowMs } from './pilot-hotspots.js';
 import { createPilotComplaint } from './complaints.js';
@@ -410,7 +410,10 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         let output;
         try {
           output = await vision.analyse({ png, signal: AbortSignal.timeout(11000) });
-        } catch {
+        } catch (error) {
+          const reason = error instanceof VisionError ? error.message :
+            error?.name === 'TimeoutError' ? 'The provider request timed out.' : 'The provider request failed.';
+          console.warn('Pilot vision:', reason);
           throw new PilotError(502, 'VISION_UNAVAILABLE', 'Real analysis failed. Retry or review this photo manually.');
         }
         if (action === 'preliminary') {

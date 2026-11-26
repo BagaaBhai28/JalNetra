@@ -138,7 +138,7 @@ export function createOpenAiVision({ apiKey, model, request = fetch, gateway = f
           text: { format: { type: 'json_schema', name: 'lake_observation', schema: resultSchema, strict: true } },
         }),
       });
-      if (!response.ok) throw new VisionError('The vision provider could not process this image.');
+      if (!response.ok) throw new VisionError(`The vision provider returned HTTP ${response.status}.`);
       const body = await response.json();
       const parts = (body.output ?? []).flatMap(item => item.content ?? []);
       const output = parts.find(item => item.type === 'output_text')?.text;
