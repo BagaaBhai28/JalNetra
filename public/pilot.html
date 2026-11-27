@@ -1,64 +1,300 @@
-<!doctype html>
+```html
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>JalNetra · Shared lake reporting</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JALNETRA | Community Reporting</title>
+
   <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/pilot-app.js"></script>
+
+  <style>
+    /* =================================
+       JALNETRA SHARED REPORTING PORTAL
+    ================================= */
+
+    .pilot-page {
+      width: min(1100px, calc(100% - 40px));
+      margin: 0 auto;
+      padding-bottom: 60px;
+    }
+
+    .pilot-hero {
+      padding: 64px 0 36px;
+      max-width: 760px;
+    }
+
+    .pilot-hero .eyebrow,
+    .pilot-section-tag {
+      color: var(--accent, #72e0a9);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-bottom: 18px;
+    }
+
+    .pilot-hero h1 {
+      font-size: clamp(38px, 6vw, 76px);
+      line-height: 1.04;
+      letter-spacing: -2.5px;
+      margin: 0 0 20px;
+    }
+
+    .pilot-hero h1 span {
+      color: var(--accent, #72e0a9);
+    }
+
+    .pilot-hero > p {
+      max-width: 620px;
+      color: var(--muted, #a4b8ad);
+      line-height: 1.8;
+    }
+
+    .pilot-hero-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border, #243b31);
+      border-radius: 30px;
+      padding: 9px 14px;
+      font-size: 12px;
+      margin-top: 15px;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: #72e0a9;
+      border-radius: 50%;
+      box-shadow: 0 0 12px #72e0a955;
+    }
+
+    .pilot-auth-card {
+      max-width: 540px;
+    }
+
+    .pilot-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .pilot-form input,
+    .pilot-form select,
+    .pilot-form textarea {
+      width: 100%;
+    }
+
+    .pilot-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .pilot-actions button {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .pilot-footnote {
+      font-size: 12px;
+      color: var(--muted, #a4b8ad);
+      border-top: 1px solid var(--border, #243b31);
+      margin-top: 22px;
+      padding-top: 16px;
+      line-height: 1.7;
+    }
+
+    .pilot-account-card {
+      margin-bottom: 20px;
+    }
+
+    .pilot-lake-selector {
+      display: flex;
+      align-items: end;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .pilot-lake-selector > div {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .pilot-lake-selector select {
+      width: 100%;
+    }
+
+    .pilot-submission-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pilot-card-number {
+      color: var(--accent, #72e0a9);
+      font-size: 26px;
+      font-weight: 700;
+      opacity: .65;
+    }
+
+    .pilot-reading-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .pilot-reading-grid label span {
+      opacity: .55;
+      font-size: 11px;
+    }
+
+    .pilot-submit-button {
+      width: 100%;
+      margin-top: 8px;
+      min-height: 48px;
+    }
+
+    .pilot-privacy-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border, #243b31);
+      background: rgba(114, 224, 169, .04);
+      border-radius: 12px;
+    }
+
+    .pilot-privacy-note p {
+      margin: 0;
+      color: var(--muted, #a4b8ad);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .privacy-icon {
+      color: var(--accent, #72e0a9);
+      font-size: 18px;
+    }
+
+    .pilot-corroboration-box {
+      padding: 14px 16px;
+      background: rgba(114, 224, 169, .045);
+      border: 1px solid var(--border, #243b31);
+      border-radius: 12px;
+      margin-bottom: 18px;
+    }
+
+    .pilot-feed-label {
+      color: var(--accent, #72e0a9);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      font-weight: 700;
+    }
+
+    .pilot-summary {
+      margin: 8px 0 0;
+      line-height: 1.7;
+    }
+
+    .pilot-records {
+      padding-left: 0;
+    }
+
+    .pilot-records > li {
+      list-style: none;
+    }
+
+    .pilot-records > li + li {
+      margin-top: 12px;
+    }
+
+    .pilot-records details {
+      margin-top: 12px;
+    }
+
+    .pilot-records summary {
+      cursor: pointer;
+      color: var(--accent, #72e0a9);
+      padding: 8px 0;
+    }
+
+    .pilot-records button.secondary {
+      margin-top: 8px;
+    }
+
+    .pilot-records textarea {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .pilot-records select {
+      max-width: 100%;
+      margin: 5px 0;
+    }
+
+    .pilot-footer {
+      width: min(1100px, calc(100% - 40px));
+      margin: 30px auto;
+      padding: 25px 0;
+      border-top: 1px solid var(--border, #243b31);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .pilot-footer p,
+    .pilot-footer span {
+      color: var(--muted, #a4b8ad);
+      font-size: 12px;
+      margin: 0;
+    }
+
+    .pilot-footer .brand {
+      width: fit-content;
+    }
+
+    @media (max-width: 650px) {
+      .pilot-page {
+        width: calc(100% - 24px);
+      }
+
+      .pilot-hero {
+        padding-top: 40px;
+      }
+
+      .pilot-hero h1 {
+        letter-spacing: -1.5px;
+      }
+
+      .pilot-reading-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pilot-lake-selector {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .pilot-actions {
+        flex-direction: column;
+      }
+
+      .pilot-actions button {
+        width: 100%;
+      }
+
+      .pilot-footer {
+        width: calc(100% - 24px);
+      }
+    }
+  </style>
 </head>
+
 <body>
-<header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" href="/">Bengaluru lake map</a></header>
-<main>
-  <section class="intro"><h1>Shared lake reporting</h1><p>Sign in to record shoreline photos and concerns, or review evidence for your assigned lakes.</p></section>
-  <p id="pilot-status" class="feedback" role="status"></p>
-  <section class="card" id="pilot-auth">
-    <div class="card-head"><h2>JalNetra account</h2></div>
-    <form id="pilot-login">
-      <label for="pilot-email">Email</label><input type="email" id="pilot-email" name="email" required maxlength="254" autocomplete="email">
-      <label for="pilot-password">Password</label><input type="password" id="pilot-password" name="password" required minlength="8" maxlength="128" autocomplete="current-password">
-      <div class="pilot-actions"><button class="primary" type="submit" value="signin">Sign in</button><button class="secondary" type="submit" value="signup">Create citizen account</button></div>
-    </form>
-  </section>
-  <div id="pilot-workspace" hidden>
-    <section class="card">
-      <div class="card-head"><div><h2 id="pilot-account">Your account</h2><p id="pilot-role"></p></div><button type="button" id="pilot-signout" class="secondary">Sign out</button></div>
-      <div class="map-controls"><div><label for="pilot-lake">Lake</label><select id="pilot-lake"></select></div><button class="secondary" id="pilot-enroll" type="button" hidden>Join this lake as a citizen</button></div>
-    </section>
-    <section class="card history" id="pilot-admin" hidden>
-      <div class="card-head"><div><h2>Manage lake roles</h2><p>People appear here after joining this lake.</p></div></div>
-      <form id="pilot-members">
-        <label for="pilot-member">Account ID</label><input id="pilot-member" required maxlength="36">
-        <label for="pilot-member-role">Role</label><select id="pilot-member-role"><option value="operator">Operator</option><option value="citizen">Citizen</option></select>
-        <button class="primary" type="submit">Update role</button>
-      </form>
-      <ul id="pilot-member-list" class="pilot-records"></ul>
-    </section>
-    <div class="workspace history" id="pilot-intake" hidden>
-      <section class="card"><div class="card-head"><h2>Submit a shoreline photo</h2></div>
-        <form id="pilot-photo-form">
-          <label for="pilot-zone">Shoreline side</label><select id="pilot-zone" name="zone_id" required></select>
-          <label for="pilot-observed">Observed at (device time)</label><input type="datetime-local" id="pilot-observed" required>
-          <label for="pilot-photo">Photo (JPEG or PNG, up to 5 MB)</label><input type="file" id="pilot-photo" accept="image/jpeg,image/png" required>
-          <div class="readings"><div><label for="pilot-ph">pH</label><input id="pilot-ph" name="ph" type="number" min="0" max="14" step="any"></div><div><label for="pilot-temp">Temperature (°C)</label><input id="pilot-temp" name="temperature_c" type="number" min="-20" max="100" step="any"></div></div>
-          <label for="pilot-note">Optional notes</label><textarea id="pilot-note" name="note" maxlength="500" rows="2"></textarea>
-          <button class="primary" type="submit">Save shared observation</button>
-        </form>
-      </section>
-      <section class="card"><div class="card-head"><h2>Raise a concern</h2></div>
-        <form id="pilot-concern-form">
-          <label for="pilot-concern-zone">Shoreline side</label><select id="pilot-concern-zone" name="zone_id" required></select>
-          <label for="pilot-concern-type">Concern type</label>
-          <select id="pilot-concern-type" name="category" required><option value="dumping">Waste dumping</option><option value="suspected-discharge">Suspected industrial or wastewater discharge</option><option value="sewage">Sewage or drain overflow</option><option value="other">Other shoreline concern</option></select>
-          <label for="pilot-concern-text">What did you observe?</label><textarea id="pilot-concern-text" name="description" maxlength="500" rows="4" required></textarea>
-          <p class="hint">Describe what you saw and omit names and contact details. Authorized lake operators can view your submission.</p>
-          <button class="primary" type="submit">Save shared concern</button>
-        </form>
-      </section>
-    </div>
-    <section class="card history"><div class="card-head"><div><h2>Lake reports</h2><p id="pilot-report-scope"></p></div><button class="secondary" id="pilot-reload" type="button">Refresh</button></div><p id="pilot-corroboration" class="pilot-summary"></p><ul id="pilot-reports" class="pilot-records"></ul></section>
-    <section class="card history"><div class="card-head"><h2>Lake concerns</h2></div><ul id="pilot-concerns" class="pilot-records"></ul></section>
-  </div>
-</main>
+
+  <!-- Community reporting page content goes here -->
+
 </body>
 </html>
+```
