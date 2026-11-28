@@ -2,7 +2,13 @@
 
 [Repository home](../README.md) · [Workflow](WORKFLOW.md) · [API contract](API.md) · [SQLite schema](../database/schema.sql)
 
-## Component diagram
+## Shared deployment
+
+The citizen pages, Community Drives and the operator workspace share the Vercel API entry point. Shared pilot requests use Supabase Auth, Postgres and private photo storage. The database checks lake membership and role before allowing operator actions. Public schedule and conditions responses expose only the fields intended for citizens. The community dashboard counts completed cleanups and verified restorations from shared records.
+
+The Vercel rehearsal uses isolated browser sessions backed by private Blob storage. The local offline rehearsal uses in-memory SQLite. See [shared pilot setup and permissions](SUPABASE_PILOT.md).
+
+## Local and rehearsal component diagram
 
 ```mermaid
 flowchart TD

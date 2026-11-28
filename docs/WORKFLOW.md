@@ -8,6 +8,8 @@ Lake observations often arrive as isolated photos or messages. To act on them, a
 
 ## How an observation is processed
 
+This sequence describes the bundled rehearsal. For the live citizen, organizer and operator workflows, see the [evaluator walkthrough](BUILD_AND_DEMO.md).
+
 1. Select **North Inlet**, **East Shore**, or **South Bank** on Demo Lake. Zone coordinates are approximate if a real pilot map is configured. The fictional map may omit them.
 2. Submit a JPEG or PNG up to 5 MB. Record observation time separately from submission time. Store UTC and show IST to the demo audience. Optional pH and temperature are marked **Citizen-reported** and excluded from hotspot rules.
 3. Decode and resize the photo in the browser. The server checks the pixel payload, encodes a PNG, and persists the report before analysis. Repeated submission of the same request ID and payload returns the existing report.

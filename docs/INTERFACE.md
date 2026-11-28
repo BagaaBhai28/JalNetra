@@ -2,6 +2,8 @@
 
 [Repository home](../README.md) · [Workflow](WORKFLOW.md) · [Build and demo](BUILD_AND_DEMO.md)
 
+This guide describes the report and evidence screens used in the rehearsal. The [evaluator walkthrough](BUILD_AND_DEMO.md) covers the current shared pilot and Community Drives pages.
+
 Use two primary views, **Report observation** and **Lake dashboard**. Open the evidence and draft panels from the dashboard. Give the project a lake-blue and teal palette, use warm amber for Watch and a clearly labelled priority status. Use text labels and icons so colour is optional for interpreting the map.
 
 | Screen | What appears | Primary action |

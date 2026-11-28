@@ -1,50 +1,39 @@
-# Build and demo plan
+# Evaluator walkthrough
 
-[Repository home](../README.md) · [Architecture](ARCHITECTURE.md) · [Interface](INTERFACE.md)
+[Repository home](../README.md) · [Shared pilot setup and permissions](SUPABASE_PILOT.md)
 
-## Eight-hour build
+## Three-minute presentation
 
-| Elapsed time | Developer A | Developer B | Exit check |
-|---|---|---|---|
-| 0:00–0:30 | Agree on storage and API shapes. | Agree on screen flow and sample responses. | Both developers work from the same contract. |
-| 0:30–2:00 | Set up SQLite, seed zones and build upload validation. | Build report form, preview and bundled zone map. | A submitted photo receives a persistent report ID. |
-| 2:00–3:30 | Connect the live model and replay adapter. Add limits, timeout and validation. | Build results and zone detail panels from fixtures. | The first foam photo shows Watch. |
-| 3:30–4:30 | Build evidence times, grouping and deduplication. | Connect the map and evidence panel to the API. | A second distinct foam photo raises priority. |
-| 4:30–5:30 | Implement complaint eligibility and draft storage. | Wire draft review, edit and export. | The core path works end to end. |
-| 5:30–6:45 | Test errors, retries, duplicates and persistence. | Verify on the presentation device and rehearse offline replay. | Tests cover live and replay scenarios. |
-| 6:45–8:00 | Fix blockers and freeze the build. | Run the script twice and record a backup if there is time. | The laptop can run the complete demo. |
+| Time | Show | Explain |
+| --- | --- | --- |
+| 0:00–0:40 | Open the live citizen site and select a lake in **Citizen lake map and guest reporting**. | Citizens can use the lake advisories even when they have no report to submit. A visible shoreline concern can prompt precautions, while the evidence remains subject to review. |
+| 0:40–1:25 | Open the public rehearsal. Start it, save **Foam from a second view** at **North Inlet**, and download the draft from the resulting **Priority hotspot**. | Show the two supporting report IDs. The example demonstrates the prototype rule and keeps its data in the rehearsal session. |
+| 1:25–2:10 | Open **Community Drives**. Show the public schedule and community sign-in. | Organizers propose drives, assigned lake operators approve them, and citizens register. Approved same-day drives appear on the homepage according to Bengaluru time. |
+| 2:10–3:00 | Open the operator workspace if an assigned account is available. Show **Restoration tracker** and **Community impact** for a selected lake. | Explain who records corrective work, how citizens provide follow-up evidence, and what an operator must verify before the outcome appears in the dashboard. |
 
-If the build is running late, prioritise photo intake, the bundled zone map, evidence grouping and plain-text complaint export. Category filters, map tiles and manual review controls can follow the demo.
+[Live citizen site](https://jalnetra-wine.vercel.app/) · [Public rehearsal](https://jalnetra-wine.vercel.app/?demo=1) · [Community Drives](https://jalnetra-wine.vercel.app/community.html) · [Operator sign in](https://jalnetra-wine.vercel.app/pilot.html?role=operator)
 
-## Acceptance checklist
+## Public rehearsal and offline fallback
 
-- [ ] A foam photo at North Inlet starts Watch and shows its model evidence.
-- [ ] A second distinct foam image in North Inlet inside the active window makes the category a Priority hotspot.
-- [ ] An identical normalized photo appears in history and adds zero to the count.
-- [ ] Foam at South Bank and algae-like growth at North Inlet each form their own groups.
-- [ ] Low-quality imagery, invalid model output and timeout save the report in Needs review.
-- [ ] Retrying a submission preserves its report ID. Restarting the app preserves saved reports.
-- [ ] An expired observation falls out of current counts and remains in history.
-- [ ] Eligible drafting includes the correct source report IDs and timestamps. An ineligible draft request gets a clear rejection.
-- [ ] Replay works with Wi-Fi off and cannot affect the live dataset.
+1. Click **Start rehearsal**. North Inlet starts at **Watch**.
+2. In **Offline demo images**, choose **Foam from a second view**, keep **North Inlet** selected, and click **Save observation**.
+3. Open the **Priority hotspot**, then **Open complaint draft** and **Download draft**. Compare the report IDs in the export with the evidence displayed on screen.
+4. Submit **Obscured view** to see **Needs review**. Use **Restart rehearsal** to reset the example.
 
-## Run a rehearsal
+For the offline version, run `node src/server.js --rehearsal` with Node.js 24 and open `http://127.0.0.1:3000`. The local rehearsal stores its example data in memory. The hosted rehearsal maintains an isolated browser session.
 
-The public Vercel demo is available from the README. In the hosted version, each browser has its own seven-day session. Refresh after saving the second sample to check that the **Priority hotspot** and its draft can still be opened.
+## Shared workflow with assigned accounts
 
-Start with `node src/server.js --rehearsal` and open `http://127.0.0.1:3000`. Click **Start rehearsal**, submit **Foam from a second view** at North Inlet, and export the draft from the hotspot. Submit **Obscured view** to exercise review. **Restart rehearsal** clears only the in-memory scenario.
+Use a staging lake or a real scheduled event that the organizers authorize for evaluation.
 
-Run the automated suite with `node --test`.
+1. Create an organizer account and confirm the email. Sign in on **Community Drives** and submit a drive with a lake, start date and time in IST, meeting point, and safety instructions.
+2. Sign in as a different account assigned to operate that lake. Open **Community drives** and approve the proposal.
+3. Open **Community Drives** as a citizen and register. For a drive scheduled on the current Bengaluru date, verify that the home page lists the correct lake, date, and start time.
+4. Once the drive starts, record attendance from **Manage published cleanups** and mark the drive complete. Open the same lake's **Community impact** and check the completed-cleanup and attendance counts.
+5. For restoration, start from an operator-verified pollution report. Assign a team, start the work, and record what was completed. As a citizen, upload a newer photo from the same sector and submit it for review in the tracker. As an operator, open and review that evidence and verify the result. Check the verified-restoration count.
 
-## Three-minute demo
+Public rehearsal steps require no login. The shared workflow requires access to the organizer inbox and an assigned operator account. A public schedule or impact counter can be empty when no corresponding records exist.
 
-| Time | Action |
-|---|---|
-| 0:00–0:25 | Introduce the problem and open the map with a seeded Watch report at North Inlet. |
-| 0:25–1:05 | Upload a distinct second foam photo. Point to the visible cue and the report’s time and location. |
-| 1:05–1:40 | Open the priority marker and compare the two evidence cards. Explain the grouping rule. |
-| 1:40–2:15 | Generate the complaint, show both report IDs and download the draft. |
-| 2:15–2:45 | Show an unclear report in Needs review and the unchanged hotspot count. |
-| 2:45–3:00 | Close with the pilot goal of validating the triage rule and civic routing. |
+## Automated checks
 
-Developer B drives the screens. Developer A explains the model decision and grouping logic. Prepare two distinct photos with permission to display and one unclear photo. Use clearly labelled simulation data or captured model responses in offline mode, and reset only the demonstration dataset between runs.
+From the repository root, run `node --test`. The [Supabase tests](../supabase/tests/) cover lake role restrictions, drive approval and Bengaluru date boundaries, and community outcomes. Run them against a migrated test database using the [pilot setup guide](SUPABASE_PILOT.md). The SQL scripts roll back their fixtures.
