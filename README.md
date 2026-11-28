@@ -10,6 +10,8 @@ JalNetra connects citizen shoreline reports to practical precautions, organized 
 
 [Live citizen homepage](https://jalnetra-wine.vercel.app/) · [Community Drives](https://jalnetra-wine.vercel.app/community.html) · [Citizen lake map and reporting](https://jalnetra-wine.vercel.app/pilot.html?role=citizen) · [Operator sign in](https://jalnetra-wine.vercel.app/pilot.html?role=operator) · [Public rehearsal](https://jalnetra-wine.vercel.app/?demo=1)
 
+[Evaluation](#start-here-for-evaluation) · [Community workflow](#how-the-community-workflow-works) · [Architecture](#system-architecture) · [Verification](#verification) · [Local setup](#run-locally) · [Evidence limits](#interpreting-the-results)
+
 ## Start here for evaluation
 
 | What to examine | How to see it |
@@ -27,6 +29,44 @@ The [evaluation walkthrough](docs/BUILD_AND_DEMO.md) includes a three-minute pre
 1. **Observe and protect.** Citizens submit shoreline photos or concerns. Image analysis identifies visible cues such as foam, algae-like growth, and dumping. Recent observations inform precautions on the lake conditions page.
 2. **Organize action.** Community groups sign in with a confirmed email and propose a drive. An assigned lake operator reviews it before publication. Citizens can register as volunteers. Groups can also submit a lake adoption plan for approval.
 3. **Track the result.** Operators record cleanup attendance and track corrective work. Follow-up photos stay private to the authorized review workflow. Verified restorations and recorded cleanup participation feed the lake's impact dashboard.
+
+### From observations and drives to recorded outcomes
+
+```mermaid
+flowchart LR
+    Citizen["Citizen report"] --> Review["Operator reviews evidence"]
+    Citizen --> Advice["Lake conditions and precautions"]
+    Review --> Work["Assign and track corrective work"]
+    Work --> Photo["Citizen submits follow-up photo"]
+    Photo --> Verify["Operator verifies restoration"]
+    Organizer["Organizer proposes cleanup"] --> Approval["Assigned operator approves"]
+    Approval --> Schedule["Public schedule and volunteer registration"]
+    Schedule --> Attendance["Operator records attendance"]
+    Verify --> Impact["Community impact counts"]
+    Attendance --> Impact
+```
+
+## System architecture
+
+| Layer | Implementation |
+| --- | --- |
+| Browser | HTML, CSS, and JavaScript for citizen, organizer, and operator workflows |
+| Server | Node.js 24 with a Vercel entry point for the shared pilot and hosted rehearsal |
+| Shared data | Supabase Auth, Postgres, and private photo storage |
+| Rehearsal | SQLite, with isolated browser sessions on Vercel and an in-memory offline mode |
+| Image analysis | Server-side provider adapters with labelled examples for rehearsal |
+
+See the [deployment and component guide](docs/ARCHITECTURE.md) and [shared pilot access rules](docs/SUPABASE_PILOT.md).
+
+## Verification
+
+| Check | What it establishes |
+| --- | --- |
+| [Node test suite](test/) and [GitHub Actions](https://github.com/BagaaBhai28/JalNetra/actions/workflows/tests.yml) | Report intake, evidence grouping, rehearsal, API access, and regression checks run in CI. |
+| [Database checks](supabase/tests/) | Lake roles, drive approval, Bengaluru date boundaries, attendance counts, and restoration verification are exercised with rollback fixtures. |
+| [Evaluator walkthrough](docs/BUILD_AND_DEMO.md) | The public rehearsal is available without credentials. The shared walkthrough requires a confirmed organizer email and an assigned operator account. |
+
+Public production checks covered the page and schedule API. An organizer's email confirmation and a real drive from approval through attendance still need to be demonstrated together on production.
 
 ## Run locally
 
