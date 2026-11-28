@@ -200,6 +200,14 @@ dialog textarea { min-height: 170px; }
 #operator-demo-content img { display: block; width: min(100%, 330px); margin: 10px 0; border-radius: 8px; }
 #demo-concern-tools .primary, #operator-demo-content .secondary { margin: 0; }
 .conditions-map { aspect-ratio: auto; height: clamp(255px, 44vw, 450px); }
+.shoreline-map {
+  background-color: #e6efec;
+  background-image: linear-gradient(#cadbd5 1px, transparent 1px), linear-gradient(90deg, #cadbd5 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.shoreline-map-name { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); text-align: center; font-weight: 700; color: #20483e; }
+.shoreline-north { position: absolute; top: 10px; left: 12px; font-weight: 700; }
+.shoreline-map-caption { position: absolute; bottom: 0; left: 0; background: #fffef7; padding: 2px 6px; font-size: .7rem; }
 .conditions-marker { border-radius: 50%; width: 20px; height: 20px; }
 .conditions-marker[aria-pressed="true"] { outline: 2px solid #183731; outline-offset: 2px; }
 .conditions-legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; background: var(--condition-color); }
