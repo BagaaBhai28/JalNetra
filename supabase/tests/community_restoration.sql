@@ -87,8 +87,14 @@ values ('c5000000-0000-4000-8000-000000000002','c2000000-0000-4000-8000-00000000
   'c1000000-0000-4000-8000-000000000001/c5000000-0000-4000-8000-000000000002.png',clock_timestamp());
 insert into storage.objects (bucket_id,name) values
   ('jalnetra-pilot-evidence','c1000000-0000-4000-8000-000000000001/c5000000-0000-4000-8000-000000000002.png');
-update public.pilot_reports set created_at = clock_timestamp()
+update public.pilot_reports set created_at = clock_timestamp(), is_follow_up = true
 where id = 'c5000000-0000-4000-8000-000000000002';
+do $$ begin
+  if exists (select 1 from public.pilot_lake_conditions()
+    where lake_id = 'c2000000-0000-4000-8000-000000000001' and state = 'pending') then
+    raise exception 'Restoration upload appeared as a new concern';
+  end if;
+end $$;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000003',true);
@@ -134,6 +140,10 @@ begin
   if board->'impact' is distinct from '{"active_adoptions":1,"completed_cleanups":1,"verified_restorations":1,"volunteers":1}'::jsonb
     or board#>>'{actions,0,pending_evidence}' is not null then
     raise exception 'Public impact is inaccurate or exposes evidence';
+  end if;
+  if exists (select 1 from public.pilot_lake_conditions()
+    where lake_id = 'c2000000-0000-4000-8000-000000000001') then
+    raise exception 'Verified restoration is still listed as an open public concern';
   end if;
 end $$;
 rollback;

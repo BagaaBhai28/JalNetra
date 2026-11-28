@@ -98,6 +98,7 @@ if ($('drive-list')) {
     const { drives } = await api('drives', undefined, true);
     $('drive-list').replaceChildren(...drives.map(drive => {
       const row = driveCard(drive, true);
+      if (drive.joined && drive.check_in_code) row.append(node('p', 'Your volunteer check-in code: ' + drive.check_in_code));
       if (Date.parse(drive.starts_at) <= Date.now()) {
         row.append(node('p', 'Registration closed'));
       } else {
@@ -123,7 +124,8 @@ if ($('drive-list')) {
     const proposals = await api('drive-proposals');
     $('drive-proposals').replaceChildren(...proposals.map(drive => {
       const row = driveCard(drive, true);
-      row.append(node('p', { pending: 'Awaiting review', published: 'Published', declined: 'Declined', withdrawn: 'Withdrawn' }[drive.status]));
+      row.append(node('p', { pending: 'Awaiting review', published: 'Published', declined: 'Declined',
+        withdrawn: 'Withdrawn', completed: 'Completed', cancelled: 'Cancelled' }[drive.status]));
       const change = (label, command) => action(label, authStatus, async () => {
         await api('drive-proposals', { action: command, id: drive.id });
         await Promise.all([loadProposals(), loadSchedule(), loadManagement()]);

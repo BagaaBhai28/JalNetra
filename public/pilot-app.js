@@ -7,6 +7,7 @@ const $ = id => document.getElementById(id);
 const notice = $('pilot-status');
 const lakeSelect = $('pilot-lake');
 const photoForm = $('pilot-photo-form');
+let followUpAction;
 const concernForm = $('pilot-concern-form');
 const operatorMode = new URLSearchParams(location.search).get('role') === 'operator' ||
   new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery';
@@ -526,7 +527,7 @@ async function chooseLake() {
   for (const id of ['pilot-zone', 'pilot-concern-zone']) {
     $(id).replaceChildren(...(lake?.pilot_zones ?? []).map(zone => new Option(zone.name, zone.id)));
   }
-  photoForm.reset(); concernForm.reset(); setObserved();
+  photoForm.reset(); concernForm.reset(); setObserved(); setFollowUp();
   linkedReport = undefined;
   $('pilot-linked-report').hidden = true;
   $('pilot-preliminary').replaceChildren();
@@ -588,7 +589,14 @@ async function loadCommunity({ reset = true, alertsOnly = false } = {}) {
         image.src = url;
         preview.replaceChildren(image);
       });
-      renderCommunityBoard(panel, board, { change, sector: id => zoneName(id, selected), showPhoto });
+      renderCommunityBoard(panel, board, { change, sector: id => zoneName(id, selected), showPhoto,
+        prepareFollowUp: entry => {
+          setFollowUp(entry);
+          $('pilot-zone').value = entry.zone_id;
+          photoForm.scrollIntoView({ block: 'start' });
+          $('pilot-photo').focus({ preventScroll: true });
+        },
+      });
       status.textContent = '';
     }
     const serialized = JSON.stringify(board.alerts);
@@ -777,21 +785,43 @@ $('pilot-members').addEventListener('submit', event => {
 });
 
 photoForm.addEventListener('input', () => { photoId = crypto.randomUUID(); });
+function setFollowUp(entry) {
+  followUpAction = entry;
+  const status = $('pilot-follow-up-status');
+  status.hidden = !entry;
+  status.textContent = entry ? 'Restoration follow-up for ' + zoneName(entry.zone_id) + '.' : '';
+  $('pilot-follow-up-cancel').hidden = !entry;
+  photoForm.querySelector('button[type=submit]').textContent = entry ? 'Submit restoration photo' : 'Save and analyze photo';
+  photoId = crypto.randomUUID();
+}
+$('pilot-follow-up-cancel').addEventListener('click', () => setFollowUp());
 concernForm.addEventListener('input', () => { concernId = crypto.randomUUID(); });
 photoForm.addEventListener('submit', event => {
   event.preventDefault();
   operate(event.submitter, async () => {
-    const current = lake, id = photoId;
+    const current = lake, id = photoId, followUp = followUpAction;
     const payload = new FormData(photoForm);
     payload.set('lake_id', current.id);
     payload.set('id', id);
     payload.set('observed_at', new Date($('pilot-observed').value).toISOString());
+    if (followUp) {
+      if (payload.get('zone_id') !== followUp.zone_id) throw new Error('Choose the same shoreline sector as the corrective work.');
+      payload.set('purpose', 'restoration');
+    }
     const photo = await normalize($('pilot-photo').files[0]);
     payload.set('pixels', photo.pixels, 'normalized.rgb');
     payload.set('width', photo.width);
     payload.set('height', photo.height);
     await authorizeGuestReport(current);
     const report = await api('upload', payload);
+    if (followUp) {
+      await api(communityRoute(current), { action: 'evidence_submit', id: followUp.id, reportId: report.id });
+      if (lake !== current) return;
+      if (photoId === id) { photoForm.reset(); setObserved(); setFollowUp(); }
+      await loadCommunity({ reset: false });
+      msg('Follow-up photo submitted for operator review.');
+      return;
+    }
     if (lake !== current) return;
     if (photoId === id) { photoForm.reset(); setObserved(); photoId = crypto.randomUUID(); }
     msg('Observation saved. Reference ' + report.id);

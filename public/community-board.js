@@ -100,7 +100,7 @@ export function renderCleanupManagement(panel, campaigns, change) {
     const started = Date.parse(campaign.starts_at) <= Date.now();
     if (started) {
       for (const volunteer of campaign.roster ?? []) {
-        const attendee = element('p', 'Volunteer ' + volunteer.id + ' ');
+        const attendee = element('p', 'Check-in code ' + (volunteer.check_in_code ?? volunteer.id) + ' ');
         attendee.append(action(volunteer.attended ? 'Remove attendance' : 'Mark attended', 'attendance',
           { id, volunteerId: volunteer.id, attended: !volunteer.attended }));
         row.append(attendee);
@@ -111,7 +111,7 @@ export function renderCleanupManagement(panel, campaigns, change) {
   }
 }
 
-export function renderCommunityBoard(panel, board, { change, sector, showPhoto }) {
+export function renderCommunityBoard(panel, board, { change, sector, showPhoto, prepareFollowUp }) {
   const { operator, adoptions, actions, reports, impact } = board;
   panel.replaceChildren();
   const reportChoices = candidates => candidates.map(row => [row.id, sector(row.zone_id) + ' · ' + date(row.observed_at)]);
@@ -172,9 +172,7 @@ export function renderCommunityBoard(panel, board, { change, sector, showPhoto }
         field('reportId', 'Your follow-up photo', { choices: reportChoices(eligible) }),
       ], submit('evidence_submit'), { id });
       else {
-        const link = element('a', 'Upload a follow-up photo');
-        link.href = '#pilot-photo-form';
-        row.append(link);
+        row.append(button('Upload a follow-up photo', () => prepareFollowUp(entry)));
       }
     }
   }

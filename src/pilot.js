@@ -16,7 +16,7 @@ const validUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const demoCases = ['foam-inlet', 'algae', 'dumping'];
 const tokenPattern = /^Bearer [\w-]+\.[\w-]+\.[\w-]+$/i;
 const bucket = 'jalnetra-pilot-evidence';
-const photoColumns = 'id,lake_id,zone_id,observed_at,created_at,note,ph,temperature_c,photo_path';
+const photoColumns = 'id,lake_id,zone_id,observed_at,created_at,note,ph,temperature_c,photo_path,is_follow_up';
 const reportSelect = photoColumns + ',reporter_id,photo_hash,events:pilot_review_events!pilot_review_events_lake_id_report_id_fkey(id,actor_id,action,category,note,duplicate_of,model_output,created_at)';
 const jsonHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const reply = (status, body) => Response.json(body, { status, headers: jsonHeaders });
@@ -150,7 +150,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       const pageSize = 100;
       for (let offset = 0; ; offset += pageSize) {
         const page = await result(rest('pilot_reports', {
-          lake_id: 'eq.' + lakeId, and: period, select: reportSelect,
+          lake_id: 'eq.' + lakeId, and: period, select: reportSelect, is_follow_up: 'eq.false',
           order: 'observed_at.desc,id.desc', limit: String(pageSize), offset: String(offset),
         }));
         reports.push(...page);
@@ -339,6 +339,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
           order: 'created_at.desc,id.desc', limit: '25', ...(lakeId ? { lake_id: 'eq.' + lakeId } : {}),
         };
         const page = incoming.searchParams.get('page');
+        if (action === 'reports') params.is_follow_up = 'eq.false';
         const review = incoming.searchParams.get('review');
         if (action === 'reports' && page !== null) {
           requireValue(/^\d{1,5}$/.test(page), 'INVALID_PAGE', 'Choose a valid report page.');
@@ -381,6 +382,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         const [id, lake_id, zone_id, observed_at, note] = ['id', 'lake_id', 'zone_id', 'observed_at', 'note'].map(read);
         const [width, height] = ['width', 'height'].map(key => Number(read(key)));
         const photo = read('pixels');
+        const is_follow_up = read('purpose') === 'restoration';
         const reading = key => read(key) ? Number(read(key)) : null;
         const ph = reading('ph'), temperature_c = reading('temperature_c');
         requireValue([id, lake_id, zone_id].every(value => typeof value === 'string' && validUuid.test(value)) &&
@@ -397,7 +399,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         requireValue(members.length && zones.length, 'PILOT_ACCESS_DENIED', 'Join this lake and choose one of its shoreline sides.', 403);
         const photo_path = user.id + '/' + id + '.png';
         const [prior] = await result(rest('pilot_reports', { photo_path: 'eq.' + photo_path, select: photoColumns }));
-        requireValue(!prior || (prior.lake_id === lake_id && prior.zone_id === zone_id),
+        requireValue(!prior || (prior.lake_id === lake_id && prior.zone_id === zone_id && Boolean(prior.is_follow_up) === is_follow_up),
           'PILOT_CONFLICT', 'Start a new observation for this shoreline side.', 409);
         if (prior) return reply(200, prior);
         const pixels = Buffer.from(await photo.arrayBuffer());
@@ -411,7 +413,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         }
         const [report] = await send(rest('pilot_reports', {}), {
           lake_id, zone_id, observed_at, note, ph, temperature_c, photo_path,
-          photo_hash: differenceHash(width, height, pixels),
+          photo_hash: differenceHash(width, height, pixels), ...(is_follow_up ? { is_follow_up } : {}),
         });
         return reply(201, report);
       }
@@ -422,6 +424,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
       }
       const data = await jsonInput(input);
       const report = await lookup(data.reportId);
+      requireValue(!report.is_follow_up, 'FOLLOW_UP_REVIEW_REQUIRED', 'Review this photo in the restoration tracker.');
       if (action === 'preliminary') {
         const user = await account();
         requireValue(report.photo_path.startsWith(user.id + '/'), 'PILOT_ACCESS_DENIED', 'Use your own observation.', 403);
