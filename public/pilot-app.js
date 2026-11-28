@@ -231,7 +231,7 @@ $('pilot-export-evidence').addEventListener('click', async event => {
   }
 });
 
-function renderHotspots(selected, groups, version) {
+function renderHotspots(selected, groups, version, errorMessage) {
   const list = $('pilot-hotspot-zones');
   const panel = $('pilot-hotspot-evidence');
   const zones = selected.pilot_zones;
@@ -249,7 +249,7 @@ function renderHotspots(selected, groups, version) {
     }
     panel.replaceChildren(el('h3', zone.name));
     const categories = groups.filter(group => group.zoneId === zone.id);
-    if (!categories.length) panel.append(el('p', hotspotStatus.none));
+    if (!categories.length) panel.append(el('p', errorMessage || hotspotStatus.none));
     for (const group of categories) {
       const section = el('section');
       section.append(el('h4', labels[group.category] + ' · ' + hotspotStatus[group.status]),
@@ -272,7 +272,7 @@ function renderHotspots(selected, groups, version) {
   for (const zone of zones) {
     const matching = groups.filter(group => group.zoneId === zone.id);
     const status = matching.find(group => group.status === 'priority_hotspot')?.status ?? matching[0]?.status ?? 'none';
-    const label = zone.name + ' · ' + hotspotStatus[status];
+    const label = zone.name + ' · ' + (errorMessage ? 'Hotspot status unavailable' : hotspotStatus[status]);
     const addButton = (parent, text, className) => {
       const button = el('button', text);
       button.type = 'button';
@@ -409,7 +409,7 @@ async function loadRecords() {
   }).catch(error => {
     if (version !== listVersion) return;
     $('pilot-hotspots').hidden = false;
-    $('pilot-hotspot-evidence').textContent = error.message;
+    renderHotspots(selected, [], version, error.message || 'Reviewed hotspots could not load. Click Refresh to retry.');
   }) : undefined;
   const state = $('pilot-review-state').value;
   const results = await Promise.allSettled([
@@ -620,11 +620,20 @@ function activeDemoId() {
   try { return JSON.parse(localStorage.getItem('jalnetra-operator-demo'))?.id; } catch { return undefined; }
 }
 
+const operatorDemoMap = $('operator-demo-map');
+let operatorDemoPoints = [];
+function drawOperatorDemoMap() {
+  drawMap(operatorDemoMap, $('operator-demo-tiles'), operatorDemoPoints, $('operator-demo-markers'), 17, 56);
+}
+new ResizeObserver(drawOperatorDemoMap).observe(operatorDemoMap);
+
 async function loadOperatorDemo() {
   if (!operatorMode || !session) return;
   const panel = $('operator-demo-content');
   const id = activeDemoId();
   $('operator-demo-concern').hidden = false;
+  operatorDemoMap.hidden = true;
+  operatorDemoPoints = [];
   panel.replaceChildren(el('p', id ? 'Loading the simulated concern.' : 'Send a demo concern below the map on the homepage, then refresh here.'));
   if (!id) return;
   try {
@@ -637,6 +646,15 @@ async function loadOperatorDemo() {
 
 function renderOperatorDemo(concern) {
   const panel = $('operator-demo-content');
+  const demoLake = lakes.find(item => item.name === concern.lake);
+  operatorDemoPoints = (demoLake?.pilot_zones ?? []).filter(zone =>
+    Number.isFinite(zone.latitude) && Number.isFinite(zone.longitude));
+  const sector = operatorDemoPoints.find(zone => zone.name === concern.sector);
+  operatorDemoMap.hidden = !sector;
+  if (sector) {
+    $('operator-demo-marker').dataset.mapId = sector.id;
+    drawOperatorDemoMap();
+  }
   const photo = el('img');
   photo.src = concern.photoUrl;
   photo.alt = 'Simulated shoreline evidence';
@@ -684,7 +702,7 @@ async function openWorkspace() {
   $('pilot-auth').hidden = true;
   $('pilot-workspace').hidden = false;
   $('pilot-account').textContent = operatorMode ? user.email : 'Citizen reporting';
-  const requested = params.get('lake');
+  const requested = params.get('lake') ?? (operatorMode && params.has('demoRun') ? 'devanahalli-lake' : null);
   lakeSelect.replaceChildren(...lakes.map(item => new Option(item.name, item.id)));
   const initial = lakes.find(item => item.slug === requested) ??
     lakes.find(item => user.memberships.some(m => m.lake_id === item.id));

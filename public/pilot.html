@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JalNetra — Shared lake reporting</title>
   <link rel="stylesheet" href="/style.css?v=operator-demo">
-  <script type="module" src="/pilot-app.js?v=operator-demo"></script>
+  <script type="module" src="/pilot-app.js?v=operator-map"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
@@ -89,6 +89,11 @@
     <section class="card history" id="operator-demo-concern" hidden aria-labelledby="operator-demo-title">
       <div class="card-head"><div><h2 id="operator-demo-title">Demo concern</h2><p>Simulated evidence for the presentation</p></div>
       <button type="button" class="secondary" id="refresh-demo-concern">Refresh demo</button></div>
+      <div class="map conditions-map" id="operator-demo-map" role="region" aria-label="Simulated concern location" hidden>
+        <div class="map-tiles" id="operator-demo-tiles" aria-hidden="true"></div>
+        <div class="map-zones demo-overlay" id="operator-demo-markers"><span class="demo-map-alert" id="operator-demo-marker">Demo alert</span></div>
+        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+      </div>
       <div class="evidence-panel" id="operator-demo-content" aria-live="polite"></div>
     </section>
     <section class="card history" id="pilot-hotspots" hidden aria-labelledby="pilot-hotspot-title">

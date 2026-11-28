@@ -39,7 +39,7 @@ function drawDemoAlert(viewport) {
 function showDemoConcern(concern) {
   demoConcern = concern;
   const link = document.querySelector('#open-demo-operator');
-  link.href = '/pilot.html?role=operator&demoRun=' + encodeURIComponent(concern.id);
+  link.href = '/pilot.html?role=operator&lake=devanahalli-lake&demoRun=' + encodeURIComponent(concern.id);
   link.hidden = false;
   document.querySelector('#demo-concern-feedback').textContent =
     'Demo sent: ' + concern.title + ' � ' + concern.lake + ', ' + concern.sector + '.';
