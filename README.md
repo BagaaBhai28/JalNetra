@@ -56,6 +56,18 @@ For a similar report in the shared pilot, an assigned operator can confirm the v
 
 The screenshots show JalNetra's interface with isolated sample records.
 
+### Citizen homepage
+
+![Citizen homepage showing the Bengaluru lake map, lake search, and a sample cleanup listing](assets/screenshots/citizen-homepage.png)
+
+*The Bengaluru map shows the reporting lakes. The cleanup listing uses sample data. Map tiles © OpenStreetMap contributors.*
+
+### Operator workspace
+
+![Operator workspace showing the Devanahalli Lake sector map with a simulated concern marker](assets/screenshots/operator-homepage.png)
+
+*The operator demo map marks the approximate shoreline sector of a simulated Devanahalli Lake concern.*
+
 ### Citizen lake advisory
 
 ![Agara Lake advisory with precautions after a sample waste-dumping observation](assets/screenshots/citizen-advisory.png)
