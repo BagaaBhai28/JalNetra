@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JalNetra — Shared lake reporting</title>
-  <link rel="stylesheet" href="/style.css?v=operator-demo">
-  <script type="module" src="/pilot-app.js?v=operator-map"></script>
+  <link rel="stylesheet" href="/style.css?v=shoreline-map">
+  <script type="module" src="/pilot-app.js?v=shoreline-map"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
@@ -89,21 +89,13 @@
     <section class="card history" id="operator-demo-concern" hidden aria-labelledby="operator-demo-title">
       <div class="card-head"><div><h2 id="operator-demo-title">Demo concern</h2><p>Simulated evidence for the presentation</p></div>
       <button type="button" class="secondary" id="refresh-demo-concern">Refresh demo</button></div>
-      <div class="map conditions-map" id="operator-demo-map" role="region" aria-label="Simulated concern location" hidden>
-        <div class="map-tiles" id="operator-demo-tiles" aria-hidden="true"></div>
+      <div class="map conditions-map shoreline-map" id="operator-demo-map" role="region" aria-label="Simulated concern location" hidden>
+        <div class="shoreline-map-name" id="operator-demo-map-name"></div><span class="shoreline-north" aria-label="North is up">↑ N</span>
         <div class="map-zones demo-overlay" id="operator-demo-markers"><span class="demo-map-alert" id="operator-demo-marker">Demo alert</span></div>
-        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>
+        <span class="shoreline-map-caption">Approximate sector location</span>
+        <a class="map-attribution" id="operator-demo-street-map" target="_blank" rel="noopener">Open street map</a>
       </div>
       <div class="evidence-panel" id="operator-demo-content" aria-live="polite"></div>
-    </section>
-    <section class="card history" id="pilot-hotspots" hidden aria-labelledby="pilot-hotspot-title">
-      <div class="card-head"><div><h2 id="pilot-hotspot-title">Reviewed shoreline hotspots</h2><p>Matching reports from the past 48 hours</p></div></div>
-      <div class="map" id="pilot-hotspot-map" hidden>
-        <div class="map-tiles" id="pilot-hotspot-tiles" aria-hidden="true"></div>
-        <div class="map-zones" id="pilot-hotspot-markers" aria-label="Shoreline sectors"></div>
-        <a class="map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">c OpenStreetMap contributors</a>
-      </div>
-      <div class="evidence-panel"><div class="pilot-actions" id="pilot-hotspot-zones" aria-label="Shoreline sectors"></div><div id="pilot-hotspot-evidence" aria-live="polite"></div></div>
     </section>
     <section class="card history"><div class="card-head"><div><h2>Lake reports</h2><p id="pilot-report-scope"></p></div><button class="secondary" id="pilot-reload" type="button">Refresh</button></div><div class="map-controls" id="pilot-report-controls">
       <div id="pilot-review-filter" hidden><label for="pilot-review-state">Review queue</label><select id="pilot-review-state"><option value="">All reports</option><option value="pending">Needs review</option></select></div>

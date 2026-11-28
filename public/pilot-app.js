@@ -1,5 +1,5 @@
 import { normalize } from './photo-input.js';
-import { drawMap } from './lake-map.js';
+import { drawMap } from './lake-map.js?v=shoreline-map';
 import { renderCommunity } from './community.js';
 
 const $ = id => document.getElementById(id);
@@ -96,16 +96,12 @@ function events(report) {
 function latestReview(report) {
   return events(report).find(item => item.action !== 'model');
 }
-const hotspotStatus = { none: 'No reviewed evidence', watch: 'Watch', priority_hotspot: 'Priority hotspot' };
-const hotspotMap = $('pilot-hotspot-map');
-const hotspotTiles = $('pilot-hotspot-tiles');
-const hotspotMarkers = $('pilot-hotspot-markers');
-let hotspotPoints = [];
-let activeHotspotZone;
 const complaintDialog = $('pilot-complaint');
 let currentComplaint;
 
-new ResizeObserver(() => drawMap(hotspotMap, hotspotTiles, hotspotPoints, hotspotMarkers, 17, 50)).observe(hotspotMap);
+function linkToStreetMap(link, latitude, longitude) {
+  link.href = 'https://www.openstreetmap.org/?mlat=' + latitude + '&mlon=' + longitude + '#map=17/' + latitude + '/' + longitude;
+}
 
 function viewPhoto(id, title, version) {
   const button = el('button', 'View photo');
@@ -232,66 +228,6 @@ $('pilot-export-evidence').addEventListener('click', async event => {
   }
 });
 
-function renderHotspots(selected, groups, version, errorMessage) {
-  const list = $('pilot-hotspot-zones');
-  const panel = $('pilot-hotspot-evidence');
-  const zones = selected.pilot_zones;
-  hotspotPoints = zones.filter(zone => Number.isFinite(zone.latitude) && Number.isFinite(zone.longitude));
-  hotspotMap.hidden = !hotspotPoints.length;
-  list.replaceChildren();
-  hotspotMarkers.replaceChildren();
-  if (!zones.some(zone => zone.id === activeHotspotZone)) {
-    activeHotspotZone = groups[0]?.zoneId ?? zones[0]?.id;
-  }
-  function showZone(zone) {
-    activeHotspotZone = zone.id;
-    for (const button of [...list.children, ...hotspotMarkers.children]) {
-      button.setAttribute('aria-pressed', String(button.dataset.mapId === zone.id));
-    }
-    panel.replaceChildren(el('h3', zone.name));
-    const categories = groups.filter(group => group.zoneId === zone.id);
-    if (!categories.length) panel.append(el('p', errorMessage || hotspotStatus.none));
-    for (const group of categories) {
-      const section = el('section');
-      section.append(el('h4', labels[group.category] + ' · ' + hotspotStatus[group.status]),
-        el('p', group.evidence.length + (group.evidence.length === 1 ? ' independent reporter' : ' independent reporters')));
-      const evidence = el('ul');
-      evidence.className = 'pilot-records';
-      for (const report of group.evidence) {
-        const row = el('li');
-        row.append(el('p', time.format(new Date(report.observedAt)) + ' IST'), el('small', 'JalNetra reference ' + report.id));
-        const readings = readingText(report.ph, report.temperatureC);
-        if (readings) row.append(el('p', 'Citizen-reported · ' + readings));
-        row.append(viewPhoto(report.id, 'Citizen photo from ' + zone.name, version));
-        evidence.append(row);
-      }
-      section.append(evidence);
-      if (group.status === 'priority_hotspot') section.append(complaintButton(selected.id, zone.id, group.category, version));
-      panel.append(section);
-    }
-  }
-  for (const zone of zones) {
-    const matching = groups.filter(group => group.zoneId === zone.id);
-    const status = matching.find(group => group.status === 'priority_hotspot')?.status ?? matching[0]?.status ?? 'none';
-    const label = zone.name + ' · ' + (errorMessage ? 'Hotspot status unavailable' : hotspotStatus[status]);
-    const addButton = (parent, text, className) => {
-      const button = el('button', text);
-      button.type = 'button';
-      button.className = className;
-      button.dataset.status = status;
-      button.dataset.mapId = zone.id;
-      button.setAttribute('aria-label', label);
-      button.addEventListener('click', () => showZone(zone));
-      parent.append(button);
-    };
-    addButton(list, label, 'secondary');
-    if (hotspotPoints.includes(zone)) addButton(hotspotMarkers, zone.name.split(' ')[0], 'marker');
-  }
-  const active = zones.find(zone => zone.id === activeHotspotZone);
-  if (active) showZone(active);
-  else panel.replaceChildren(el('p', 'This lake has no reporting sectors.'));
-  drawMap(hotspotMap, hotspotTiles, hotspotPoints, hotspotMarkers, 17, 50);
-}
 function reviewForm(report, candidates, version, suggestedCategory) {
   const block = el('form');
   const decision = el('select');
@@ -332,7 +268,7 @@ function reviewForm(report, candidates, version, suggestedCategory) {
   });
   return block;
 }
-function reportCard(report, reports, selected, canReview, version) {
+function reportCard(report, reports, selected, canReview, version, groups) {
   const card = el('li');
   const review = latestReview(report);
   const model = events(report).find(item => item.action === 'model')?.model_output;
@@ -360,6 +296,10 @@ function reportCard(report, reports, selected, canReview, version) {
     }));
     card.append(analyze);
   }
+  const hotspot = groups.find(group => group.status === 'priority_hotspot' &&
+    group.zoneId === report.zone_id && group.category === review?.category &&
+    group.evidence.some(item => item.id === report.id));
+  if (hotspot) card.append(complaintButton(selected.id, hotspot.zoneId, hotspot.category, version));
   const candidates = reports.filter(other => other.id !== report.id).map(other => {
     const distance = photoDistance(report.photo_hash, other.photo_hash);
     return { id: other.id, distance, title: zoneName(other.zone_id, selected) + ' · ' +
@@ -387,10 +327,6 @@ async function loadRecords() {
   if (complaintDialog.open) complaintDialog.close();
   for (const url of previews) URL.revokeObjectURL(url);
   previews.clear();
-  $('pilot-hotspots').hidden = true;
-  hotspotMap.hidden = true;
-  $('pilot-hotspot-zones').replaceChildren();
-  $('pilot-hotspot-evidence').replaceChildren();
   const reports = $('pilot-reports'), concerns = $('pilot-concerns');
   if (!selected || !role) {
     reports.replaceChildren(el('li', operatorMode ? 'No lake selected.' : 'You have no reports for this lake yet.'));
@@ -403,25 +339,17 @@ async function loadRecords() {
   reports.replaceChildren(el('li', 'Loading observations.'));
   concerns.replaceChildren(el('li', 'Loading concerns.'));
   const scope = '?lakeId=' + selected.id;
-  const hotspotTask = canReview ? api('hotspots' + scope).then(({ groups }) => {
-    if (version !== listVersion) return;
-    $('pilot-hotspots').hidden = false;
-    renderHotspots(selected, groups, version);
-  }).catch(error => {
-    if (version !== listVersion) return;
-    $('pilot-hotspots').hidden = false;
-    renderHotspots(selected, [], version, error.message || 'Reviewed hotspots could not load. Click Refresh to retry.');
-  }) : undefined;
   const state = $('pilot-review-state').value;
   const results = await Promise.allSettled([
     api('reports' + scope + '&page=' + reportPage + (canReview && state ? '&review=' + state : '')),
     api('concerns' + scope),
+    canReview ? api('hotspots' + scope) : undefined,
   ]);
-  const [photoData, concernData] = results.map(item => item.status === 'fulfilled' ? item.value : null);
+  const [photoData, concernData, hotspotData] = results.map(item => item.status === 'fulfilled' ? item.value : null);
   if (version !== listVersion) return;
   $('pilot-prev').disabled = reportPage === 0;
   $('pilot-next').disabled = !photoData?.hasMore;
-  reports.replaceChildren(...(photoData?.reports.length ? photoData.reports.map(report => reportCard(report, photoData.reports, selected, canReview, version)) : [el('li', photoData ? 'No observations on this page.' : 'Reports could not load. Click Refresh to retry.')]));
+  reports.replaceChildren(...(photoData?.reports.length ? photoData.reports.map(report => reportCard(report, photoData.reports, selected, canReview, version, hotspotData?.groups ?? [])) : [el('li', photoData ? 'No observations on this page.' : 'Reports could not load. Click Refresh to retry.')]));
   concerns.replaceChildren(...(concernData?.concerns.length ? concernData.concerns.map(concern => {
     const row = el('li');
     row.append(el('h3', labels[concern.category] + ' · ' + zoneName(concern.zone_id, selected)),
@@ -432,7 +360,6 @@ async function loadRecords() {
     }
     return row;
   }) : [el('li', concernData ? 'No concerns yet.' : 'Concerns could not load. Click Refresh to retry.')]));
-  await hotspotTask;
 }
 function setObserved() {
   const now = new Date();
@@ -625,7 +552,7 @@ function activeDemoId() {
 const operatorDemoMap = $('operator-demo-map');
 let operatorDemoPoints = [];
 function drawOperatorDemoMap() {
-  drawMap(operatorDemoMap, $('operator-demo-tiles'), operatorDemoPoints, $('operator-demo-markers'), 17, 56);
+  drawMap(operatorDemoMap, null, operatorDemoPoints, $('operator-demo-markers'), 17, 56);
 }
 new ResizeObserver(drawOperatorDemoMap).observe(operatorDemoMap);
 
@@ -655,6 +582,8 @@ function renderOperatorDemo(concern) {
   operatorDemoMap.hidden = !sector;
   if (sector) {
     $('operator-demo-marker').dataset.mapId = sector.id;
+    $('operator-demo-map-name').textContent = demoLake.name;
+    linkToStreetMap($('operator-demo-street-map'), sector.latitude, sector.longitude);
     drawOperatorDemoMap();
   }
   const photo = el('img');

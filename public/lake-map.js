@@ -104,7 +104,7 @@ export function drawMap(container, layer, points, markers, maxZoom, padding) {
 }
 
 export function renderViewport(layer, points, markers, viewport) {
-  drawTiles(layer, viewport);
+  if (layer) drawTiles(layer, viewport);
   placeMarkers(points, markers, viewport);
 }
 
