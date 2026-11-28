@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JalNetra — Shared lake reporting</title>
   <link rel="stylesheet" href="/style.css?v=shoreline-map">
-  <script type="module" src="/pilot-app.js?v=community-restoration"></script>
+  <script type="module" src="/pilot-app.js?v=community-drive-page"></script>
 </head>
 <body>
-<header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
+  <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" href="/community.html#organizers">Community drives</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
 <main>
   <section class="intro"><h1>Shared lake reporting</h1><p>Browse lake conditions and submit shoreline reports as a guest. Lake operators can sign in to review reports.</p></section>
   <p id="pilot-status" class="feedback" role="status"></p>
@@ -62,7 +62,8 @@
       </div>
     </section>
     <section class="card history" aria-labelledby="community-board-title">
-      <div class="card-head"><h2 id="community-board-title">Community action</h2>
+      <div class="card-head"><div><h2 id="community-board-title">Community action</h2>
+        <a id="community-drive-link" href="/community.html">Community drives</a></div>
         <button type="button" class="secondary" id="community-refresh">Refresh</button></div>
       <p id="community-status" role="status"></p>
       <div id="community-alerts" aria-live="polite" hidden></div>

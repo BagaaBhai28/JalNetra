@@ -10,6 +10,7 @@ const photoForm = $('pilot-photo-form');
 const concernForm = $('pilot-concern-form');
 const operatorMode = new URLSearchParams(location.search).get('role') === 'operator' ||
   new URLSearchParams(location.hash.slice(1)).get('type') === 'recovery';
+if (operatorMode) $('community-drive-link').href = '/community.html?role=operator#organizers';
 const storage = operatorMode ? sessionStorage : localStorage;
 const store = operatorMode ? 'jalnetra-pilot-session' : 'jalnetra-guest-session';
 const time = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
