@@ -1,5 +1,6 @@
 import { normalize } from './photo-input.js';
 import { drawMap } from './lake-map.js?v=shoreline-map';
+import { renderCommunity } from './community.js';
 
 const $ = id => document.getElementById(id);
 const notice = $('pilot-status');
@@ -414,6 +415,7 @@ function renderConditions() {
   conditionPanel.tabIndex = -1;
   conditionPanel.append(el('h3', lake.name));
   const details = byLake.get(lake.id) ?? [];
+  renderCommunity(conditionPanel, lake, details, conditions, lakes);
   if (!details.length) {
     conditionPanel.append(el('p', 'No recent information for this lake.'));
     return;
