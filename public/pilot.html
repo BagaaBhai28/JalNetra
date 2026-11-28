@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>JalNetra — Shared lake reporting</title>
   <link rel="stylesheet" href="/style.css?v=shoreline-map">
-  <script type="module" src="/pilot-app.js?v=shoreline-map"></script>
+  <script type="module" src="/pilot-app.js?v=community-restoration"></script>
 </head>
 <body>
 <header class="top"><a class="brand" href="/">JalNetra</a><a class="scope" id="pilot-map-link" href="/">Bengaluru lake map</a></header>
@@ -60,6 +60,13 @@
         <p class="hint">A photo cannot establish water quality or whether a lake is safe to enter.</p>
         <div id="conditions-detail" aria-live="polite"></div>
       </div>
+    </section>
+    <section class="card history" aria-labelledby="community-board-title">
+      <div class="card-head"><h2 id="community-board-title">Community action</h2>
+        <button type="button" class="secondary" id="community-refresh">Refresh</button></div>
+      <p id="community-status" role="status"></p>
+      <div id="community-alerts" aria-live="polite" hidden></div>
+      <div id="community-board"></div>
     </section>
     <div class="workspace history" id="pilot-intake" hidden>
       <section class="card"><div class="card-head"><h2>Submit a shoreline photo</h2></div>

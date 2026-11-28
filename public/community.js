@@ -24,14 +24,26 @@ export function renderCommunity(panel, lake, signals, allSignals, allLakes) {
   const follow = make('button', selected.follow ? 'Unfollow lake' : 'Follow lake');
   follow.type = 'button'; follow.className = 'secondary';
   const status = make('p','');
-  follow.onclick = () => { selected.follow = !selected.follow; state[lake.id] = selected; status.textContent = save() ? 'Lake preference saved on this device.' : 'Device storage unavailable.'; follow.textContent = selected.follow ? 'Unfollow lake' : 'Follow lake'; };
-  panel.append(follow,status,make('h4','Followed lake updates'));
+  status.setAttribute('role', 'status');
   const updates = make('ul','');
-  for (const item of allLakes.filter(l => state[l.id]?.follow)) {
-    const s = communityAdvice(allSignals.filter(x => x.lake_id === item.id));
-    updates.append(make('li',item.name+' · '+s.active+' recent concern signals'));
-  }
-  if (!updates.children.length) updates.append(make('li','Follow a lake to see its current concern count here after refreshing.'));
+  const renderUpdates = () => {
+    const followed = allLakes.filter(item => state[item.id]?.follow);
+    const rows = followed.map(item => {
+      const summary = communityAdvice(allSignals.filter(signal => signal.lake_id === item.id));
+      return make('li', item.name + ' · ' + summary.active + ' recent concern signals');
+    });
+    if (!rows.length) rows.push(make('li', 'Follow a lake to see its current concern count here.'));
+    updates.replaceChildren(...rows);
+  };
+  follow.onclick = () => {
+    selected.follow = !selected.follow;
+    state[lake.id] = selected;
+    status.textContent = save() ? 'Lake preference saved on this device.' : 'Device storage unavailable.';
+    follow.textContent = selected.follow ? 'Unfollow lake' : 'Follow lake';
+    renderUpdates();
+  };
+  panel.append(follow,status,make('h4','Followed lake updates'));
+  renderUpdates();
   panel.append(updates,make('h4','Personal lake stewardship plan'),make('p','Choose safe actions. This checklist is stored on this device only; it is not an event registration or proof of restoration.'));
   const tasks = ['Observe the shoreline from a safe public location','Share verified advisories with neighbours','Contact a recognised lake group about an authorised cleanup','Return for a follow-up observation after remediation'];
   tasks.forEach((task,i) => { const label = make('label',''); const input = document.createElement('input'); input.type='checkbox'; input.checked=Boolean(selected.tasks?.[i]); input.onchange=()=>{ selected.tasks ||= {}; selected.tasks[i]=input.checked; state[lake.id]=selected; status.textContent=save()?'Personal plan saved.':'Device storage unavailable.'; }; label.append(input,document.createTextNode(' '+task)); const row=make('p',''); row.append(label); panel.append(row); });

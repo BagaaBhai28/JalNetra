@@ -28,6 +28,16 @@ Select a Priority category and choose **Generate complaint draft**. The server c
 
 For Devanahalli Lake, the draft suggests the [Devanahalli Town Municipal Council](https://bangalorerural.nic.in/en/public-utility/devanahalli-tmc/) as a local contact. Confirm responsibility for the specific site and issue before filing. [Karnataka Janaspandana](https://ipgrs.karnataka.gov.in/) is available as a public grievance route. The operator files the draft separately.
 
+## Community action
+
+- **Cleanups.** Assigned operators publish authorised events with meeting and safety instructions. Citizens register before the event. Operators can record attendance after the start time and then complete the event.
+- **Lake adoption.** Citizens submit a group and stewardship plan. Assigned operators approve, decline or end an adoption. Approved plans appear on the lake's community board.
+- **Restoration.** An operator starts with a human-verified pollution photo, assigns a responsible team and records work completed. A citizen uploads a new photo from the same sector and submits it for verification in the tracker. The operator opens the private evidence and accepts or rejects it.
+- **Impact.** The board counts completed cleanups, unique volunteers with recorded attendance at completed cleanups, active adoptions and restorations with accepted evidence.
+- **Lake alerts.** Citizens subscribe through Community action. New standalone concerns and operator confirmations or corrections generate alerts automatically. The in-app inbox refreshes every 30 seconds while the citizen page is open and keeps unread alerts for the next visit in the same session. Lake subscriptions and read state are stored with the account.
+
+Apply the community restoration migration to the target Supabase database before releasing the community board. Run `supabase/tests/community_restoration.sql` with a database administrator connection to verify the workflow and access rules. The test rolls back its fixtures.
+
 ## Deployment checks
 
 The pilot migrations include the 21 mapped lakes and four reporting sectors per lake. The pilot readiness route reports the database schema version and whether vision credentials are available. Run npm test and supabase/tests/pilot_access.sql to check API handling and live database role policies. The SQL test rolls back its fixtures.
