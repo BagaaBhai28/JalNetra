@@ -359,7 +359,6 @@ async function loadRecords() {
     }
     return row;
   }) : [el('li', concernData ? 'No concerns yet.' : 'Concerns could not load. Click Refresh to retry.')]));
-  await hotspotTask;
 }
 function setObserved() {
   const now = new Date();
