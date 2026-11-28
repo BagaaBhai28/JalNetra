@@ -10,7 +10,7 @@
 
 [Citizen lake map](https://jalnetra-wine.vercel.app/pilot.html?role=citizen) · [Community Drives](https://jalnetra-wine.vercel.app/community.html) · [Operator workspace](https://jalnetra-wine.vercel.app/pilot.html?role=operator) · [Public rehearsal](https://jalnetra-wine.vercel.app/?demo=1)
 
-[Objectives](#objectives) · [Product features](#product-features) · [Community workflow](#community-workflow) · [Architecture](#system-architecture) · [Data and access](#data-and-access) · [Testing and setup](#testing-and-setup)
+[Objectives](#objectives) · [Worked example](#worked-example-from-a-shoreline-photo-to-follow-up) · [Product features](#product-features) · [Screenshots](#screenshots) · [Community workflow](#community-workflow) · [Architecture](#system-architecture) · [Data and access](#data-and-access) · [Testing and setup](#testing-and-setup)
 
 ## The project
 
@@ -28,6 +28,20 @@ A resident might notice foam, algae-like growth, waste dumping, or a suspected d
 | Keep corrective work traceable | Operators can link an action to a verified report, assign a team, record progress, and review a citizen's follow-up photo. |
 | Measure completed work | The community dashboard derives its counts from recorded attendance, adoption status, and accepted restoration evidence. |
 
+## Worked example from a shoreline photo to follow-up
+
+**Public rehearsal · simulated foam observation at North Inlet**
+
+| Step | What happens |
+| --- | --- |
+| First observation | The rehearsal starts with one eligible foam photo at North Inlet. The sector shows **Watch**. |
+| Second observation | A citizen saves **Foam from a second view** in the same sector. The second distinct photo raises the rehearsal group to **Priority**. |
+| Evidence handoff | The complaint draft lists both report IDs and timestamps so the recipient can trace the evidence behind the request for inspection. |
+
+**Shared pilot · illustrative continuation**
+
+For a similar report in the shared pilot, an assigned operator can confirm the visible concern, assign a team to investigate, and record the corrective work. A citizen can then submit a fresh photo from the same shoreline sector. Once an operator accepts that follow-up evidence, the lake dashboard counts one verified restoration. Field measurements are needed to assess whether water quality improved.
+
 ## Product features
 
 | Workspace | Features |
@@ -37,6 +51,28 @@ A resident might notice foam, algae-like growth, waste dumping, or a suspected d
 | **Community Drives** | Public cleanup schedule, volunteer registration, organizer email sign-in, and proposal status. Assigned operators can approve drives, manage attendance, and mark cleanups complete. |
 | **Operator workspace** | Assigned-lake review queue, private evidence, image analysis, corrective work tracking, adoption approvals, and restoration verification. |
 | **Public rehearsal** | An isolated, account-free scenario for submitting sample photos, observing hotspot changes, and downloading a complaint draft. |
+
+## Screenshots
+
+The screenshots show JalNetra's interface with isolated sample records.
+
+### Citizen lake advisory
+
+![Agara Lake advisory with precautions after a sample waste-dumping observation](assets/screenshots/citizen-advisory.png)
+
+*Sample data. The advisory explains how to report waste safely and when to join an authorized cleanup.*
+
+### Community Drives
+
+![Community Drives schedule showing a sample Agara Lake cleanup and volunteer registration](assets/screenshots/community-drives.png)
+
+*Sample data. An approved drive card shows the organizer, time in IST, meeting instructions, and volunteer registration.*
+
+### Restoration tracker
+
+![Restoration tracker showing corrective work in progress and a follow-up photo awaiting review](assets/screenshots/restoration-tracker.png)
+
+*Sample data. The tracker shows the assigned work and separates work in progress from follow-up evidence awaiting operator review.*
 
 ## Community workflow
 
