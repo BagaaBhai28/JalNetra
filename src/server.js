@@ -22,6 +22,8 @@ const assets = new Map([
   ['/photo-input.js', ['photo-input.js', 'text/javascript; charset=utf-8']],
   ['/pilot.html', ['pilot.html', 'text/html; charset=utf-8']],
   ['/pilot-app.js', ['pilot-app.js', 'text/javascript; charset=utf-8']],
+  ['/community.js', ['community.js', 'text/javascript; charset=utf-8']],
+  ['/community-board.js', ['community-board.js', 'text/javascript; charset=utf-8']],
 ]);
 const headers = {
   'Cache-Control': 'no-store',

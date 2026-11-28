@@ -6,6 +6,30 @@ const source = 'https://pilotexample.supabase.co';
 const host = 'https://jalnetra.example';
 const settings = { url: source, publishableKey: 'sb_publishable_example' };
 
+test('community board accepts public reads and forwards only authenticated same-origin writes', async () => {
+  const lakeId = 'c2000000-0000-4000-8000-000000000001';
+  const route = host + '/api/jalnetra?jalroute=pilot/community&lakeId=' + lakeId;
+  const authorization = 'Bearer demo.token.value';
+  const calls = [];
+  const handle = createPilotHandler({ ...settings, async request(url, options) {
+    calls.push([url.pathname, options.headers.Authorization, JSON.parse(options.body)]);
+    return Response.json({});
+  } });
+  const write = (headers = {}) => new Request(route, {
+    method: 'POST', headers, body: JSON.stringify({ action: 'subscribe' }),
+  });
+  assert.equal((await handle(new Request(route))).status, 200);
+  assert.equal((await handle(new Request(route, { headers: { authorization } }))).status, 200);
+  assert.equal((await handle(write({ origin: host }))).status, 401);
+  assert.equal((await handle(write({ authorization, origin: source }))).status, 403);
+  assert.equal((await handle(write({ authorization, origin: host }))).status, 200);
+  assert.deepEqual(calls, [
+    ['/rest/v1/rpc/pilot_community_board', undefined, { p_lake: lakeId }],
+    ['/rest/v1/rpc/pilot_community_board', authorization, { p_lake: lakeId }],
+    ['/rest/v1/rpc/pilot_community_change', authorization, { p_lake: lakeId, p_action: 'subscribe', p_data: {} }],
+  ]);
+});
+
 test('pilot health verifies the Supabase schema over the Vercel rewrite', async () => {
   const handle = createPilotHandler({ ...settings, async request(url, options) {
     assert.equal(url.href, source + '/rest/v1/rpc/jalnetra_pilot_status');

@@ -1,6 +1,7 @@
 import { normalize } from './photo-input.js';
 import { drawMap } from './lake-map.js?v=shoreline-map';
 import { renderCommunity } from './community.js';
+import { renderCommunityAlerts, renderCommunityBoard } from './community-board.js';
 
 const $ = id => document.getElementById(id);
 const notice = $('pilot-status');
@@ -263,7 +264,7 @@ function reviewForm(report, candidates, version, suggestedCategory) {
     operate(submit, async () => {
       await api('review', { reportId: report.id, decision: decision.value,
         category: category.hidden ? null : category.value, duplicateOf: duplicate.hidden ? null : duplicate.value, note: note.value });
-      if (version === listVersion) { await loadRecords(); msg('Review saved.'); }
+      if (version === listVersion) { await Promise.all([loadRecords(), loadCommunity({ reset: false })]); msg('Review saved.'); }
     });
   });
   return block;
@@ -536,8 +537,74 @@ async function chooseLake() {
   const matched = lake?.pilot_zones.find(item => item.slug === sector);
   if (matched) for (const id of ['pilot-zone', 'pilot-concern-zone']) $(id).value = matched.id;
   photoId = crypto.randomUUID(); concernId = crypto.randomUUID();
-  await Promise.all([loadRecords(), role === 'admin' ? loadMembers(lake) : undefined]);
+  await Promise.all([loadRecords(), role === 'admin' ? loadMembers(lake) : undefined, loadCommunity()]);
 }
+
+let communityVersion = 0;
+let lastAlerts = '';
+function communityRoute(selected) {
+  return 'community?lakeId=' + encodeURIComponent(selected.id);
+}
+
+async function loadCommunity({ reset = true, alertsOnly = false } = {}) {
+  const selected = lake;
+  const panel = $('community-board');
+  const alerts = $('community-alerts');
+  const status = $('community-status');
+  const version = alertsOnly ? communityVersion : ++communityVersion;
+  if (reset && !alertsOnly) {
+    panel.replaceChildren();
+    alerts.hidden = true;
+    lastAlerts = '';
+    status.textContent = selected ? 'Loading community records…' : 'Choose a lake.';
+  }
+  if (!selected || (alertsOnly && (!session || operatorMode || document.hidden))) return;
+  try {
+    const board = await api(communityRoute(selected));
+    if (lake !== selected || version !== communityVersion) return;
+    const change = (control, action, details) => operate(control, async () => {
+      try {
+        if (!operatorMode && action !== 'alert_read') await authorizeGuestReport(selected);
+        await api(communityRoute(selected), { action, ...details });
+        if (lake === selected) {
+          await loadCommunity({ reset: false });
+          if (!status.textContent) status.textContent = 'Community record saved.';
+        }
+      } catch (error) {
+        if (lake === selected) status.textContent = error.message;
+      }
+    });
+    if (!alertsOnly) {
+      const showPhoto = (control, id, preview, onLoad) => operate(control, async () => {
+        const image = el('img');
+        image.alt = 'Citizen follow-up evidence';
+        const url = URL.createObjectURL(await api('photo?id=' + encodeURIComponent(id), undefined, true));
+        image.onload = () => { URL.revokeObjectURL(url); onLoad(); };
+        image.onerror = () => {
+          URL.revokeObjectURL(url);
+          preview.textContent = 'The photo could not be displayed.';
+        };
+        image.src = url;
+        preview.replaceChildren(image);
+      });
+      renderCommunityBoard(panel, board, { change, sector: id => zoneName(id, selected), showPhoto });
+      status.textContent = '';
+    }
+    const serialized = JSON.stringify(board.alerts);
+    if (!operatorMode && session && serialized !== lastAlerts) {
+      alerts.hidden = false;
+      renderCommunityAlerts(alerts, board.alerts, change);
+      lastAlerts = serialized;
+    }
+  } catch {
+    if (lake === selected && version === communityVersion && !alertsOnly) {
+      status.textContent = 'Community records could not load. Use Refresh to try again.';
+    }
+  }
+}
+
+$('community-refresh').addEventListener('click', event => operate(event.currentTarget, () => loadCommunity({ reset: false })));
+setInterval(() => loadCommunity({ alertsOnly: true }), 30000);
 async function loadMembers(selected) {
   const { members } = await api('members?lakeId=' + selected.id);
   if (lake !== selected) return;
@@ -728,7 +795,7 @@ photoForm.addEventListener('submit', event => {
     if (photoId === id) { photoForm.reset(); setObserved(); photoId = crypto.randomUUID(); }
     msg('Observation saved. Reference ' + report.id);
     await Promise.all([runPreliminary(report, current), loadConditions()]);
-    if (lake === current) await loadRecords();
+    if (lake === current) await Promise.all([loadRecords(), loadCommunity({ reset: false })]);
   });
 });
 concernForm.addEventListener('submit', event => {
