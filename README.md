@@ -10,7 +10,7 @@
 
 [Citizen lake map](https://jalnetra-wine.vercel.app/pilot.html?role=citizen) · [Community Drives](https://jalnetra-wine.vercel.app/community.html) · [Operator workspace](https://jalnetra-wine.vercel.app/pilot.html?role=operator) · [Public rehearsal](https://jalnetra-wine.vercel.app/?demo=1)
 
-[Objectives](#objectives) · [Worked example](#worked-example-from-a-shoreline-photo-to-follow-up) · [Product features](#product-features) · [Screenshots](#screenshots) · [Community workflow](#community-workflow) · [Architecture](#system-architecture) · [Data and access](#data-and-access) · [Testing and setup](#testing-and-setup)
+[Objectives](#objectives) · [Worked example](#worked-example-from-a-shoreline-photo-to-follow-up) · [Product features](#product-features) · [Community workflow](#community-workflow) · [Architecture](#system-architecture) · [Screenshots](#screenshots) · [Data and access](#data-and-access) · [Testing and setup](#testing-and-setup)
 
 ## The project
 
@@ -51,40 +51,6 @@ For a similar report in the shared pilot, an assigned operator can confirm the v
 | **Community Drives** | Public cleanup schedule, volunteer registration, organizer email sign-in, and proposal status. Assigned operators can approve drives, manage attendance, and mark cleanups complete. |
 | **Operator workspace** | Assigned-lake review queue, private evidence, image analysis, corrective work tracking, adoption approvals, and restoration verification. |
 | **Public rehearsal** | An isolated, account-free scenario for submitting sample photos, observing hotspot changes, and downloading a complaint draft. |
-
-## Screenshots
-
-The screenshots show JalNetra's interface with isolated sample records.
-
-### Citizen homepage
-
-![Citizen homepage showing the Bengaluru lake map, lake search, and a sample cleanup listing](assets/screenshots/citizen-homepage.png)
-
-*The Bengaluru map shows the reporting lakes. The cleanup listing uses sample data. Map tiles © OpenStreetMap contributors.*
-
-### Operator workspace
-
-![Operator workspace showing the Devanahalli Lake sector map with a simulated concern marker](assets/screenshots/operator-homepage.png)
-
-*The operator demo map marks the approximate shoreline sector of a simulated Devanahalli Lake concern.*
-
-### Citizen lake advisory
-
-![Agara Lake advisory with precautions after a sample waste-dumping observation](assets/screenshots/citizen-advisory.png)
-
-*Sample data. The advisory explains how to report waste safely and when to join an authorized cleanup.*
-
-### Community Drives
-
-![Community Drives schedule showing a sample Agara Lake cleanup and volunteer registration](assets/screenshots/community-drives.png)
-
-*Sample data. An approved drive card shows the organizer, time in IST, meeting instructions, and volunteer registration.*
-
-### Restoration tracker
-
-![Restoration tracker showing corrective work in progress and a follow-up photo awaiting review](assets/screenshots/restoration-tracker.png)
-
-*Sample data. The tracker shows the assigned work and separates work in progress from follow-up evidence awaiting operator review.*
 
 ## Community workflow
 
@@ -219,6 +185,40 @@ flowchart TD
 | Shared persistence | Supabase Postgres for lake memberships, reports, review decisions, campaigns, attendance, adoptions, restoration actions, and alerts. |
 | Evidence | Private Supabase photo storage for the pilot and SQLite-backed sample evidence for the rehearsal. |
 | Image analysis | Server-side provider adapters with validated outputs and labelled sample responses for offline replay. |
+
+## Screenshots
+
+The screenshots show JalNetra's interface with isolated sample records.
+
+### Citizen homepage
+
+![Citizen homepage showing the Bengaluru lake map, lake search, and a sample cleanup listing](assets/screenshots/citizen-homepage.png)
+
+*The Bengaluru map shows the reporting lakes. The cleanup listing uses sample data. Map tiles © OpenStreetMap contributors.*
+
+### Operator workspace
+
+![Operator workspace showing the Devanahalli Lake sector map with a simulated concern marker](assets/screenshots/operator-homepage.png)
+
+*The operator demo map marks the approximate shoreline sector of a simulated Devanahalli Lake concern.*
+
+### Citizen lake advisory
+
+![Agara Lake advisory with precautions after a sample waste-dumping observation](assets/screenshots/citizen-advisory.png)
+
+*Sample data. The advisory explains how to report waste safely and when to join an authorized cleanup.*
+
+### Community Drives
+
+![Community Drives schedule showing a sample Agara Lake cleanup and volunteer registration](assets/screenshots/community-drives.png)
+
+*Sample data. An approved drive card shows the organizer, time in IST, meeting instructions, and volunteer registration.*
+
+### Restoration tracker
+
+![Restoration tracker showing corrective work in progress and a follow-up photo awaiting review](assets/screenshots/restoration-tracker.png)
+
+*Sample data. The tracker shows the assigned work and separates work in progress from follow-up evidence awaiting operator review.*
 
 ## Data and access
 
