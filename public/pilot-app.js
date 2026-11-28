@@ -1,1139 +1,421 @@
+const lakeSelect = document.querySelector('#pilot-lake');
+const zoneSelect = document.querySelector('#pilot-zone');
+const timeInput = document.querySelector('#pilot-time');
+const noteInput = document.querySelector('#pilot-note');
+const phInput = document.querySelector('#pilot-ph');
+const temperatureInput = document.querySelector('#pilot-temperature');
+const photoInput = document.querySelector('#pilot-photo');
+const preview = document.querySelector('#pilot-preview');
+const previewWrap = document.querySelector('#pilot-preview-wrap');
+const removePhotoButton = document.querySelector('#pilot-remove-photo');
+const form = document.querySelector('#pilot-report-form');
+const submitButton = document.querySelector('#pilot-submit');
+const statusBox = document.querySelector('#pilot-status');
+const reportsContainer = document.querySelector('#pilot-reports');
+const charCount = document.querySelector('#pilot-char-count');
+const refreshButton = document.querySelector('#pilot-refresh');
 
-import { normalize } from './photo-input.js';
+let lakes = [];
+let selectedFile = null;
 
-const $ = id => document.getElementById(id);
-const notice = $('pilot-status');
-const lakeSelect = $('pilot-lake');
-const photoForm = $('pilot-photo-form');
-const concernForm = $('pilot-concern-form');
+// -----------------------------
+// HELPERS
+// -----------------------------
 
-const store = 'jalnetra-pilot-session';
+function createRequestId() {
+  return crypto.randomUUID().replaceAll('-', '');
+}
 
-const time = new Intl.DateTimeFormat('en-IN', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Kolkata'
+function setStatus(message, type = '') {
+  statusBox.textContent = message;
+  statusBox.className = `pilot-status ${type}`;
+}
+
+function escapeHTML(value = '') {
+  return String(value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[character]);
+}
+
+function setCurrentLocalTime() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  timeInput.value = now.toISOString().slice(0, 16);
+}
+
+function localTimeToISO(value) {
+  const date = new Date(value);
+  return date.toISOString();
+}
+
+async function api(url, options = {}) {
+  const response = await fetch(url, options);
+
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error?.message || `Request failed (${response.status})`
+    );
+  }
+
+  return data;
+}
+
+// -----------------------------
+// LOAD LAKES
+// -----------------------------
+
+async function loadLakes() {
+  try {
+    const runtime = await api('/api/status');
+    const scope = document.querySelector('#pilot-data-scope');
+    if (scope) {
+      scope.textContent = runtime.hosted
+        ? 'Hosted demo: reports are saved in this browser’s private session. Shared pilot review requires the configured pilot service.'
+        : 'Local demo: reports are saved by this JalNetra server.';
+    }
+
+    lakes = await api('/api/lakes');
+
+    lakeSelect.innerHTML = `
+      <option value="">Choose a lake</option>
+      ${lakes.map(lake => `
+        <option value="${escapeHTML(lake.id)}">
+          ${escapeHTML(lake.name)}
+        </option>
+      `).join('')}
+    `;
+
+    zoneSelect.innerHTML = '<option value="">Choose a lake first</option>';
+
+    if (!lakes.length) {
+      lakeSelect.innerHTML = '<option value="">No lakes available</option>';
+    }
+  } catch (error) {
+    lakeSelect.innerHTML = '<option value="">Unable to load lakes</option>';
+    setStatus(error.message, 'error');
+  }
+}
+
+// -----------------------------
+// LOAD SHORELINE ZONES
+// -----------------------------
+
+function loadZones() {
+  const lake = lakes.find(item => item.id === lakeSelect.value);
+
+  if (!lake) {
+    zoneSelect.innerHTML = '<option value="">Choose a lake first</option>';
+    reportsContainer.innerHTML = '<p class="pilot-empty">Select a lake to view reports.</p>';
+    return;
+  }
+
+  zoneSelect.innerHTML = `
+    <option value="">Choose observation zone</option>
+    ${(lake.zones || []).map(zone => `
+      <option value="${escapeHTML(zone.id)}">
+        ${escapeHTML(zone.name)}
+      </option>
+    `).join('')}
+  `;
+
+  loadReports();
+}
+
+lakeSelect.addEventListener('change', loadZones);
+
+// -----------------------------
+// PHOTO PREVIEW
+// -----------------------------
+
+photoInput.addEventListener('change', () => {
+  const file = photoInput.files?.[0];
+
+  selectedFile = null;
+  previewWrap.classList.add('hidden');
+
+  if (!file) return;
+
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    setStatus('Please choose a JPEG or PNG image.', 'error');
+    photoInput.value = '';
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    setStatus('Photo must be smaller than 10 MB.', 'error');
+    photoInput.value = '';
+    return;
+  }
+
+  selectedFile = file;
+  preview.src = URL.createObjectURL(file);
+  previewWrap.classList.remove('hidden');
+  setStatus('');
 });
 
-const labels = {
-  foam: 'Foam',
-  algae_like_growth: 'Algae-like growth',
-  dumping: 'Waste dumping',
-  'suspected-discharge': 'Suspected wastewater discharge',
-  sewage: 'Sewage or drain overflow',
-  other: 'Other concern',
-  confirm: 'Confirmed',
-  correct: 'Corrected',
-  dismiss: 'Dismissed',
-  duplicate: 'Marked duplicate'
-};
-
-let session;
-
-try {
-  session = JSON.parse(sessionStorage.getItem(store));
-} catch {
-  session = null;
-}
-
-let user;
-let lakes = [];
-let lake;
-let role;
-
-let listVersion = 0;
-let refreshInFlight;
-let visionConfigured = false;
-
-let photoId = crypto.randomUUID();
-let concernId = crypto.randomUUID();
-
-const previews = new Set();
-
-/* -------------------- UI HELPERS -------------------- */
-
-function msg(text, error = false) {
-  notice.textContent = text;
-  notice.dataset.kind = error ? 'error' : 'success';
-}
-
-function el(tag, text) {
-  const node = document.createElement(tag);
-  if (text != null) node.textContent = text;
-  return node;
-}
-
-function setSession(next) {
-  session = next;
-
-  if (next) {
-    sessionStorage.setItem(store, JSON.stringify(next));
-  } else {
-    sessionStorage.removeItem(store);
-  }
-}
-
-/* -------------------- API -------------------- */
-
-async function http(route, payload, token) {
-  const headers = new Headers();
-
-  if (token) {
-    headers.set('Authorization', 'Bearer ' + token);
-  }
-
-  const method = payload === undefined ? 'GET' : 'POST';
-  let body = payload;
-
-  if (payload !== undefined && !(payload instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-    body = JSON.stringify(payload);
-  }
-
-  return fetch('/api/pilot/' + route, {
-    method,
-    headers,
-    body
-  });
-}
-
-async function decode(response) {
-  if (response.ok) {
-    return response.json();
-  }
-
-  const info = await response.json().catch(() => ({}));
-
-  throw new Error(
-    info.error?.message ||
-    'Shared reporting could not complete this request.'
-  );
-}
-
-async function api(route, payload, image = false) {
-  let response = await http(
-    route,
-    payload,
-    session?.access_token
-  );
-
-  if (response.status === 401 && session?.refresh_token) {
-    const key = session.refresh_token;
-
-    refreshInFlight ??= http(
-      'refresh',
-      { refresh_token: key }
-    )
-      .then(decode)
-      .then(next => {
-        if (session?.refresh_token === key) {
-          setSession(next);
-        }
-      })
-      .finally(() => {
-        refreshInFlight = undefined;
-      });
-
-    await refreshInFlight;
-
-    response = await http(
-      route,
-      payload,
-      session?.access_token
-    );
-  }
-
-  if (image && response.ok) {
-    return response.blob();
-  }
-
-  return decode(response);
-}
-
-/* -------------------- ACTION HANDLER -------------------- */
-
-function operate(button, run) {
-  if (button?.disabled) return;
-
-  if (button) button.disabled = true;
-
-  msg('');
-
-  return Promise.resolve()
-    .then(run)
-    .catch(error => {
-      msg(
-        error?.message || 'Something went wrong.',
-        true
-      );
-    })
-    .finally(() => {
-      if (button) button.disabled = false;
-    });
-}
-
-/* -------------------- LAKE HELPERS -------------------- */
-
-function zoneName(id, selected = lake) {
-  return selected?.pilot_zones?.find(
-    zone => zone.id === id
-  )?.name ?? 'Shoreline sector';
-}
-
-function labelOf(value) {
-  return labels[value] || value || 'Unclassified';
-}
-
-/* -------------------- PHOTO SIMILARITY -------------------- */
-
-function photoDistance(a, b) {
-  if (
-    !/^[a-f0-9]{16}$/.test(a ?? '') ||
-    !/^[a-f0-9]{16}$/.test(b ?? '')
-  ) {
-    return Infinity;
-  }
-
-  let bits = BigInt('0x' + a) ^ BigInt('0x' + b);
-  let count = 0;
-
-  for (; bits > 0n; bits &= bits - 1n) {
-    count++;
-  }
-
-  return count;
-}
-
-/* -------------------- REVIEW HELPERS -------------------- */
-
-function events(report) {
-  return [...(report.events ?? [])].sort(
-    (a, b) => b.created_at.localeCompare(a.created_at)
-  );
-}
-
-function latestReview(report) {
-  return events(report).find(
-    item => item.action !== 'model'
-  );
-}
-
-/* -------------------- CORROBORATION -------------------- */
-
-function renderCorroboration(reports, selected) {
-  const groups = new Map();
-
-  for (const report of reports) {
-    const review = latestReview(report);
-
-    const age = Date.now() - Date.parse(report.observed_at);
-
-    if (
-      !review?.category ||
-      age > 48 * 3600000 ||
-      age < 0
-    ) {
-      continue;
-    }
-
-    const key = report.zone_id + ':' + review.category;
-
-    if (!groups.has(key)) {
-      groups.set(key, {
-        zone: report.zone_id,
-        category: review.category,
-        independent: new Set()
-      });
-    }
-
-    groups.get(key).independent.add(
-      report.reporter_id
-    );
-  }
-
-  $('pilot-corroboration').textContent =
-    [...groups.values()]
-      .filter(group => group.independent.size >= 2)
-      .map(group =>
-        zoneName(group.zone, selected) +
-        ' · ' +
-        labelOf(group.category) +
-        ' · ' +
-        group.independent.size +
-        ' independent reporters'
-      )
-      .join(' | ');
-}
-
-/* -------------------- REVIEW FORM -------------------- */
-
-function reviewForm(report, candidates, version) {
-  const block = el('form');
-
-  const decision = el('select');
-  decision.setAttribute(
-    'aria-label',
-    'Decision for ' + report.id
-  );
-
-  for (const [value, name] of [
-    ['confirm', 'Confirm visible evidence'],
-    ['correct', 'Correct category'],
-    ['dismiss', 'Dismiss evidence'],
-    ['duplicate', 'Mark as duplicate']
-  ]) {
-    decision.add(new Option(name, value));
-  }
-
-  const category = el('select');
-  category.setAttribute(
-    'aria-label',
-    'Evidence category'
-  );
-
-  for (const value of [
-    'foam',
-    'algae_like_growth',
-    'dumping'
-  ]) {
-    category.add(
-      new Option(labels[value], value)
-    );
-  }
-
-  const duplicate = el('select');
-  duplicate.setAttribute(
-    'aria-label',
-    'Original report'
-  );
-
-  duplicate.add(
-    new Option('Choose the original report', '')
-  );
-
-  for (const candidate of candidates) {
-    duplicate.add(
-      new Option(candidate.title, candidate.id)
-    );
-  }
-
-  const note = el('textarea');
-  note.required = true;
-  note.maxLength = 500;
-  note.rows = 2;
-  note.placeholder = 'Explain the decision';
-  note.setAttribute(
-    'aria-label',
-    'Operator review note'
-  );
-
-  function fields() {
-    duplicate.hidden = decision.value !== 'duplicate';
-    duplicate.required = !duplicate.hidden;
-
-    category.hidden = [
-      'dismiss',
-      'duplicate'
-    ].includes(decision.value);
-  }
-
-  decision.addEventListener('change', fields);
-  fields();
-
-  const submit = el('button', 'Save review');
-  submit.className = 'secondary';
-  submit.type = 'submit';
-
-  block.append(
-    decision,
-    category,
-    duplicate,
-    note,
-    submit
-  );
-
-  block.addEventListener('submit', event => {
-    event.preventDefault();
-
-    operate(submit, async () => {
-      await api('review', {
-        reportId: report.id,
-        decision: decision.value,
-        category: category.hidden
-          ? null
-          : category.value,
-        duplicateOf: duplicate.hidden
-          ? null
-          : duplicate.value,
-        note: note.value
-      });
-
-      if (version === listVersion) {
-        await loadRecords();
-        msg('Review saved.');
-      }
-    });
+removePhotoButton.addEventListener('click', () => {
+  photoInput.value = '';
+  selectedFile = null;
+  preview.src = '';
+  previewWrap.classList.add('hidden');
+  setStatus('');
+});
+
+// -----------------------------
+// NOTE COUNTER
+// -----------------------------
+
+noteInput.addEventListener('input', () => {
+  charCount.textContent = `${noteInput.value.length} / 500`;
+});
+
+// -----------------------------
+// CONVERT PHOTO TO RAW RGB
+// Backend expects RGB pixel bytes,
+// not the original JPEG/PNG file.
+// -----------------------------
+
+async function imageToRGB(file) {
+  const bitmap = await createImageBitmap(file);
+
+  const maxSize = 1200;
+  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
+
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d', {
+    willReadFrequently: true
   });
 
-  return block;
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const imageData = context.getImageData(0, 0, width, height);
+  const rgba = imageData.data;
+  const rgb = new Uint8Array(width * height * 3);
+
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+    rgb[j] = rgba[i];
+    rgb[j + 1] = rgba[i + 1];
+    rgb[j + 2] = rgba[i + 2];
+  }
+
+  return { width, height, rgb };
 }
 
-/* -------------------- REPORT CARD -------------------- */
+// -----------------------------
+// SUBMIT REPORT
+// -----------------------------
 
-function reportCard(
-  report,
-  reports,
-  selected,
-  canReview,
-  version
-) {
-  const card = el('li');
+form.addEventListener('submit', async event => {
+  event.preventDefault();
 
-  const review = latestReview(report);
-
-  const model = events(report).find(
-    item => item.action === 'model'
-  )?.model_output;
-
-  card.append(
-    el(
-      'h3',
-      zoneName(report.zone_id, selected) +
-      ' · ' +
-      time.format(new Date(report.observed_at)) +
-      ' IST'
-    ),
-    el(
-      'p',
-      review
-        ? labelOf(review.action) +
-          (review.category
-            ? ' · ' + labelOf(review.category)
-            : '')
-        : 'Awaiting human review'
-    )
-  );
-
-  if (report.note) {
-    card.append(el('p', report.note));
-  }
-
-  const readings = [
-    report.ph != null ? 'pH ' + report.ph : '',
-    report.temperature_c != null
-      ? report.temperature_c + ' °C'
-      : ''
-  ].filter(Boolean);
-
-  if (readings.length) {
-    card.append(
-      el(
-        'p',
-        'Citizen-reported · ' + readings.join(' · ')
-      )
-    );
-  }
-
-  if (review?.note) {
-    card.append(el('p', review.note));
-  }
-
-  /* Photo viewer */
-
-  const media = el('button', 'View photo');
-  media.type = 'button';
-  media.className = 'secondary';
-
-  media.addEventListener('click', () => {
-    operate(media, async () => {
-      const blob = await api(
-        'photo?id=' + encodeURIComponent(report.id),
-        undefined,
-        true
-      );
-
-      if (version !== listVersion) return;
-
-      const image = el('img');
-
-      image.alt =
-        'Citizen photo from ' +
-        zoneName(report.zone_id, selected);
-
-      image.src = URL.createObjectURL(blob);
-      previews.add(image.src);
-
-      media.replaceWith(image);
-    });
-  });
-
-  card.append(media);
-
-  /* AI visual analysis */
-
-  if (model) {
-    const cues = model.detections?.map(
-      item =>
-        labelOf(item.category) +
-        ' — ' +
-        item.cue
-    );
-
-    card.append(
-      el(
-        'p',
-        'Live vision · ' +
-        (
-          model.imageQuality === 'unclear'
-            ? 'Image unclear'
-            : cues?.join('; ') ||
-              'No visible target signs'
-        )
-      )
-    );
-  }
-
-  if (!canReview) {
-    return card;
-  }
-
-  /* Analyze button */
-
-  if (visionConfigured && !model) {
-    const analyze = el('button', 'Analyze photo');
-    analyze.type = 'button';
-    analyze.className = 'secondary';
-
-    analyze.addEventListener('click', () => {
-      operate(analyze, async () => {
-        await api('analyze', {
-          reportId: report.id
-        });
-
-        if (version === listVersion) {
-          await loadRecords();
-          msg('Photo analysis saved.');
-        }
-      });
-    });
-
-    card.append(analyze);
-  }
-
-  /* Possible duplicate matching */
-
-  const candidates = reports
-    .filter(other => other.id !== report.id)
-    .map(other => {
-      const distance = photoDistance(
-        report.photo_hash,
-        other.photo_hash
-      );
-
-      return {
-        id: other.id,
-        distance,
-        title:
-          zoneName(other.zone_id, selected) +
-          ' · ' +
-          time.format(
-            new Date(other.observed_at)
-          ) +
-          ' · ' +
-          other.id.slice(0, 8) +
-          (
-            distance <= 6
-              ? ' · visually similar'
-              : ''
-          )
-      };
-    })
-    .sort((a, b) => a.distance - b.distance);
-
-  if (
-    candidates.some(other => other.distance <= 6)
-  ) {
-    card.append(
-      el(
-        'p',
-        'Possible near-duplicate. Compare the photos before deciding.'
-      )
-    );
-  }
-
-  /* Review panel */
-
-  const details = el('details');
-
-  details.append(
-    el('summary', 'Review evidence'),
-    reviewForm(report, candidates, version)
-  );
-
-  /* Review history */
-
-  if (review) {
-    const history = el('details');
-
-    history.append(
-      el('summary', 'Review history')
-    );
-
-    for (const entry of events(report).filter(
-      item => item.action !== 'model'
-    )) {
-      history.append(
-        el(
-          'p',
-          labelOf(entry.action) +
-          ' · ' +
-          time.format(
-            new Date(entry.created_at)
-          ) +
-          ' IST · ' +
-          (entry.note || '')
-        )
-      );
-    }
-
-    details.append(history);
-  }
-
-  card.append(details);
-
-  return card;
-}
-
-/* -------------------- LOAD REPORTS -------------------- */
-
-async function loadRecords() {
-  const version = ++listVersion;
-  const selected = lake;
-
-  /* Clean previous photo preview URLs */
-
-  for (const url of previews) {
-    URL.revokeObjectURL(url);
-  }
-
-  previews.clear();
-
-  $('pilot-corroboration').textContent = '';
-
-  const reports = $('pilot-reports');
-  const concerns = $('pilot-concerns');
-
-  if (!selected || !role) {
-    reports.replaceChildren(
-      el('li', 'Join this lake to view your submissions.')
-    );
-
-    concerns.replaceChildren();
-
+  if (!selectedFile) {
+    setStatus('Please upload an observation photo.', 'error');
     return;
   }
 
-  const canReview = [
-    'operator',
-    'admin'
-  ].includes(role);
-
-  reports.replaceChildren(
-    el('li', 'Loading observations…')
-  );
-
-  concerns.replaceChildren(
-    el('li', 'Loading concerns…')
-  );
-
-  const scope = '?lakeId=' + selected.id;
-
-  const [photoData, concernData] =
-    await Promise.all([
-      api('reports' + scope),
-      api('concerns' + scope)
-    ]);
-
-  /* Prevent stale results after lake switching */
-
-  if (version !== listVersion || lake !== selected) {
+  if (!lakeSelect.value || !zoneSelect.value) {
+    setStatus('Please select a lake and shoreline zone.', 'error');
     return;
   }
 
-  reports.replaceChildren(
-    ...(
-      photoData.reports.length
-        ? photoData.reports.map(report =>
-            reportCard(
-              report,
-              photoData.reports,
-              selected,
-              canReview,
-              version
-            )
-          )
-        : [el('li', 'No observations yet.')]
-    )
-  );
-
-  concerns.replaceChildren(
-    ...(
-      concernData.concerns.length
-        ? concernData.concerns.map(concern => {
-            const row = el('li');
-
-            row.append(
-              el(
-                'h3',
-                labelOf(concern.category) +
-                ' · ' +
-                zoneName(
-                          concern.zone_id,
-                          selected
-                        )
-              ),
-              el('p', concern.description),
-              el(
-                'small',
-                'JalNetra reference ' + concern.id
-              )
-            );
-
-            return row;
-          })
-        : [el('li', 'No concerns yet.')]
-    )
-  );
-
-  if (canReview) {
-    renderCorroboration(
-      photoData.reports,
-      selected
-    );
-  }
-}
-
-/* -------------------- TIME HELPER -------------------- */
-
-function setObserved() {
-  const now = new Date();
-
-  $('pilot-observed').value = new Date(
-    now - now.getTimezoneOffset() * 60000
-  )
-    .toISOString()
-    .slice(0, 16);
-}
-
-/* -------------------- LAKE SELECTION -------------------- */
-
-async function chooseLake() {
-  lake = lakes.find(
-    item => item.id === lakeSelect.value
-  );
-
-  role = user?.memberships?.find(
-    item => item.lake_id === lake?.id
-  )?.role;
-
-  $('pilot-enroll').hidden = !lake || !!role;
-
-  $('pilot-intake').hidden = role !== 'citizen';
-
-  $('pilot-admin').hidden = role !== 'admin';
-
-  $('pilot-role').textContent =
-    (
-      role
-        ? 'Lake role · ' + role
-        : 'Select a lake to join and report.'
-    ) +
-    ' · Account ID ' +
-    (user?.id ?? '');
-
-  $('pilot-report-scope').textContent =
-    ['operator', 'admin'].includes(role)
-      ? (
-          visionConfigured
-            ? 'Shared review queue · latest 25 reports'
-            : 'Shared review queue · human review available'
-        )
-      : 'Your latest submissions';
-
-  for (const id of [
-    'pilot-zone',
-    'pilot-concern-zone'
-  ]) {
-    $(id).replaceChildren(
-      ...(lake?.pilot_zones ?? []).map(
-        zone => new Option(zone.name, zone.id)
-      )
-    );
+  if (!timeInput.value) {
+    setStatus('Please select the observation date and time.', 'error');
+    return;
   }
 
-  photoForm.reset();
-  concernForm.reset();
-  setObserved();
-
-  photoId = crypto.randomUUID();
-  concernId = crypto.randomUUID();
-
-  await Promise.all([
-    loadRecords(),
-    role === 'admin'
-      ? loadMembers(lake)
-      : undefined
-  ]);
-}
-
-/* -------------------- ADMIN MEMBERS -------------------- */
-
-async function loadMembers(selected) {
-  const { members } = await api(
-    'members?lakeId=' + selected.id
-  );
-
-  if (lake !== selected) return;
-
-  $('pilot-member-list').replaceChildren(
-    ...members.map(member =>
-      el(
-        'li',
-        member.user_id + ' · ' + member.role
-      )
-    )
-  );
-}
-
-/* -------------------- WORKSPACE -------------------- */
-
-async function openWorkspace() {
-  const [account, catalog, status] =
-    await Promise.all([
-      api('account'),
-      api('catalog'),
-      api('status')
-    ]);
-
-  user = account;
-  lakes = catalog.lakes;
-  visionConfigured = status.visionConfigured;
-
-  $('pilot-auth').hidden = true;
-  $('pilot-workspace').hidden = false;
-
-  $('pilot-account').textContent = user.email;
-
-  const requested = new URLSearchParams(
-    location.search
-  ).get('lake');
-
-  lakeSelect.replaceChildren(
-    ...lakes.map(
-      item => new Option(item.name, item.id)
-    )
-  );
-
-  const initial =
-    lakes.find(item => item.slug === requested) ??
-    lakes.find(item =>
-      user.memberships.some(
-        membership => membership.lake_id === item.id
-      )
-    );
-
-  if (initial) {
-    lakeSelect.value = initial.id;
+  if (new Date(timeInput.value).getTime() > Date.now()) {
+    setStatus('Observation time cannot be in the future.', 'error');
+    return;
   }
 
-  await chooseLake();
-}
+  submitButton.disabled = true;
+  submitButton.innerHTML = '<span>Submitting report...</span><span>⌛</span>';
+  setStatus('Processing your photo and report. Please wait...', 'loading');
 
-/* -------------------- LOGIN / SIGNUP -------------------- */
+  try {
+    const { width, height, rgb } = await imageToRGB(selectedFile);
 
-$('pilot-login').addEventListener(
-  'submit',
-  event => {
-    event.preventDefault();
+    const body = new FormData();
 
-    const button = event.submitter;
-    if (!button) return;
+    body.append('zoneId', zoneSelect.value);
+    body.append('requestId', createRequestId());
+    body.append('observedAt', localTimeToISO(timeInput.value));
+    body.append('note', noteInput.value.trim());
+    body.append('ph', phInput.value);
+    body.append('temperatureC', temperatureInput.value);
+    body.append('photoWidth', String(width));
+    body.append('photoHeight', String(height));
 
-    operate(button, async () => {
-      const payload = Object.fromEntries(
-        new FormData(event.target)
-      );
+    body.append(
+      'photo',
+      new Blob([rgb], { type: 'application/octet-stream' }),
+      'photo.rgb'
+    );
 
-      const auth = await decode(
-        await http(button.value, payload)
-      );
-
-      event.target.reset();
-
-      if (button.value === 'signup') {
-        return msg(auth.message);
-      }
-
-      setSession(auth);
-
-      await openWorkspace();
+    const report = await api('/api/reports', {
+      method: 'POST',
+      body
     });
+
+    setStatus('Report submitted successfully!', 'success');
+
+    showReportSuccess(report);
+
+    form.reset();
+    selectedFile = null;
+    preview.src = '';
+    previewWrap.classList.add('hidden');
+    charCount.textContent = '0 / 500';
+    setCurrentLocalTime();
+
+    await loadReports();
+
+  } catch (error) {
+    setStatus(error.message || 'Unable to submit report. Please try again.', 'error');
+  } finally {
+    submitButton.disabled = false;
+    submitButton.innerHTML = '<span>Submit observation</span><span>→</span>';
   }
-);
+});
 
-/* -------------------- SIGNOUT -------------------- */
+// -----------------------------
+// SUCCESS MESSAGE
+// -----------------------------
 
-$('pilot-signout').addEventListener(
-  'click',
-  () => operate(
-    $('pilot-signout'),
-    async () => {
-      try {
-        await api('signout', {});
-      } finally {
-        setSession(null);
+function showReportSuccess(report) {
+  if (!report) return;
 
-        user = null;
-        lakes = [];
-        lake = null;
-        role = null;
+  const status = report.status || 'pending';
 
-        listVersion++;
+  let statusLabel = 'Report received';
+  if (status === 'classified') statusLabel = 'Visible signs detected';
+  else if (status === 'no_target_signs') statusLabel = 'No target signs detected';
+  else if (status === 'needs_review') statusLabel = 'Requires further review';
+  else if (status === 'pending') statusLabel = 'Analysis pending';
 
-        for (const url of previews) {
-          URL.revokeObjectURL(url);
-        }
-
-        previews.clear();
-
-        await loadRecords();
-
-        $('pilot-workspace').hidden = true;
-        $('pilot-auth').hidden = false;
-      }
-  )
-);
-
-/* -------------------- ENROLL -------------------- */
-
-$('pilot-enroll').addEventListener(
-  'click',
-  () => operate(
-    $('pilot-enroll'),
-    async () => {
-      await api('enroll', {
-        lakeId: lake.id
-      });
-
-      user = await api('account');
-
-      await chooseLake();
-    }
-  )
-);
-
-/* -------------------- LAKE CHANGE -------------------- */
-
-lakeSelect.addEventListener(
-  'change',
-  () => chooseLake().catch(
-    error => msg(error.message, true)
-  )
-);
-
-/* -------------------- RELOAD -------------------- */
-
-$('pilot-reload').addEventListener(
-  'click',
-  () => operate(
-    $('pilot-reload'),
-    loadRecords
-  )
-);
-
-/* -------------------- MEMBER MANAGEMENT -------------------- */
-
-$('pilot-members').addEventListener(
-  'submit',
-  event => {
-    event.preventDefault();
-
-    operate(event.submitter, async () => {
-      const selected = lake;
-
-      await api(
-        'members?lakeId=' + selected.id,
-        {
-          userId: $('pilot-member').value.trim(),
-          role: $('pilot-member-role').value
-        }
-      );
-
-      if (lake !== selected) return;
-
-      await loadMembers(selected);
-
-      msg('Lake role updated.');
-    });
-  }
-);
-
-/* -------------------- FORM ID RESET -------------------- */
-
-photoForm.addEventListener(
-  'input',
-  () => {
-    photoId = crypto.randomUUID();
-  }
-);
-
-concernForm.addEventListener(
-  'input',
-  () => {
-    concernId = crypto.randomUUID();
-  }
-);
-
-/* -------------------- PHOTO SUBMISSION -------------------- */
-
-photoForm.addEventListener(
-  'submit',
-  event => {
-    event.preventDefault();
-
-    operate(event.submitter, async () => {
-      const current = lake;
-      const id = photoId;
-
-      if (!current) {
-        throw new Error('Select a lake first.');
-      }
-
-      const payload = new FormData(photoForm);
-
-      payload.set('lake_id', current.id);
-      payload.set('id', id);
-
-      payload.set(
-        'observed_at',
-        new Date(
-          $('pilot-observed').value
-        ).toISOString()
-      );
-
-      const photo = await normalize(
-        $('pilot-photo').files[0]
-      );
-
-      payload.set(
-        'pixels',
-        photo.pixels,
-        'normalized.rgb'
-      );
-
-      payload.set('width', photo.width);
-      payload.set('height', photo.height);
-
-      const report = await api(
-        'upload',
-        payload
-      );
-
-      if (lake !== current) return;
-
-      if (photoId === id) {
-        photoForm.reset();
-        setObserved();
-        photoId = crypto.randomUUID();
-      }
-
-      msg(
-        'Observation saved. Reference ' +
-        report.id
-      );
-
-      await loadRecords();
-    }
-  }
-);
-
-/* -------------------- CONCERN SUBMISSION -------------------- */
-
-concernForm.addEventListener(
-  'submit',
-  event => {
-    event.preventDefault();
-
-    operate(event.submitter, async () => {
-      const current = lake;
-      const id = concernId;
-
-      if (!current) {
-        throw new Error('Select a lake first.');
-      }
-
-      const concern = await api(
-        'concerns',
-        {
-          ...Object.fromEntries(
-            new FormData(concernForm)
-          ),
-          id,
-          lake_id: current.id
-        }
-      );
-
-      if (lake !== current) return;
-
-      if (concernId === id) {
-        concernForm.reset();
-        concernId = crypto.randomUUID();
-      }
-
-      msg(
-        'Concern saved. Reference ' +
-        concern.id
-      );
-
-      await loadRecords();
-    }
-  }
-);
-
-/* -------------------- AUTH CALLBACK -------------------- */
-
-const authFragment = new URLSearchParams(
-  location.hash.slice(1)
-);
-
-if (
-  authFragment.has('access_token') ||
-  authFragment.has('error_description')
-) {
-  history.replaceState(
-    null,
-    '',
-    location.pathname + location.search
+  setStatus(
+    `✓ Report submitted. ${statusLabel}. Report ID: ${report.id}`,
+    'success'
   );
+}
 
-  if (authFragment.has('access_token')) {
-    msg('Email confirmed. Sign in to continue.');
-  } else {
-    msg(
-      'The confirmation link could not be used. Request a new account email or sign in if already confirmed.',
-      true
-    );
+// -----------------------------
+// RECENT REPORTS
+// -----------------------------
+
+async function loadReports() {
+  const lakeId = lakeSelect.value;
+
+  if (!lakeId) {
+    reportsContainer.innerHTML = '<p class="pilot-empty">Select a lake to view reports.</p>';
+    return;
+  }
+
+  reportsContainer.innerHTML = '<p class="pilot-empty">Loading observations...</p>';
+
+  try {
+    const reports = await api(`/api/reports?lakeId=${encodeURIComponent(lakeId)}`);
+
+    if (!Array.isArray(reports) || reports.length === 0) {
+      reportsContainer.innerHTML = `
+        <p class="pilot-empty">
+          No reports for this lake yet. Be the first to contribute.
+        </p>
+      `;
+      return;
+    }
+
+    reportsContainer.innerHTML = reports.map(report => {
+      const date = report.observedAt
+        ? new Date(report.observedAt).toLocaleString()
+        : 'Date unavailable';
+
+      const status = report.status || 'pending';
+
+      const statusText = {
+        classified: 'Signs detected',
+        no_target_signs: 'No target signs detected',
+        needs_review: 'Needs review',
+        pending: 'Analysis pending'
+      }[status] || status.replaceAll('_', ' ');
+
+      return `
+        <article class="pilot-report-item">
+          <div class="pilot-report-image">
+            <img
+              src="${escapeHTML(report.photoUrl || '')}"
+              alt="Reported lake observation"
+              loading="lazy"
+            />
+          </div>
+
+          <div class="pilot-report-info">
+            <div class="pilot-report-top">
+              <span class="pilot-report-zone">${escapeHTML(report.zoneName || 'Shoreline')}</span>
+              <span class="pilot-report-status ${escapeHTML(status)}">
+                ${escapeHTML(statusText)}
+              </span>
+            </div>
+
+            <h4>${escapeHTML(report.lakeName || '')}</h4>
+            <p>${escapeHTML(report.note || 'No description provided.')}</p>
+
+            <div class="pilot-report-meta">
+              <span>◷ ${escapeHTML(date)}</span>
+              ${report.ph !== null && report.ph !== undefined ? `<span>pH: ${escapeHTML(report.ph)}</span>` : ''}
+              ${report.temperatureC !== null && report.temperatureC !== undefined ? `<span>${escapeHTML(report.temperatureC)}°C</span>` : ''}
+            </div>
+
+            ${
+              report.detections?.length
+                ? `<div class="pilot-detections">
+                    ${report.detections.map(detection => `
+                      <span class="pilot-detection-tag">
+                        ${escapeHTML(detection.category)}
+                      </span>
+                    `).join('')}
+                  </div>`
+                : ''
+            }
+
+            <small class="pilot-report-id">${escapeHTML(report.id || '')}</small>
+          </div>
+        </article>
+      `;
+    }).join('');
+
+  } catch (error) {
+    reportsContainer.innerHTML = `
+      <p class="pilot-empty">
+        Could not load reports. ${escapeHTML(error.message)}
+      </p>
+    `;
   }
 }
 
-/* -------------------- SESSION RESTORE -------------------- */
+refreshButton.addEventListener('click', loadReports);
 
-if (session) {
-  openWorkspace().catch(error => {
-    setSession(null);
-    user = null;
-    lake = null;
-    role = null;
-    msg(error.message, true);
-  });
-}
+// -----------------------------
+// INITIALIZATION
+// -----------------------------
+
+setCurrentLocalTime();
+loadLakes();

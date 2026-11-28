@@ -1,4 +1,3 @@
-
 import { normalize } from './photo-input.js';
 import {
   interactiveMap,
@@ -145,7 +144,6 @@ const formatTime = new Intl.DateTimeFormat('en-IN', {
 
 async function getJson(url, options) {
   const response = await fetch(url, options);
-
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -182,7 +180,6 @@ function updateTimestamp() {
 
 function textElement(tag, text, className) {
   const element = document.createElement(tag);
-
   element.textContent = text ?? '';
 
   if (className) {
@@ -224,9 +221,7 @@ function highlightZone() {
 
     marker.dataset.status = hotspot?.status ?? 'none';
 
-    const markerStatus = marker.querySelector(
-      '.sector-status'
-    );
+    const markerStatus = marker.querySelector('.sector-status');
 
     if (markerStatus) {
       markerStatus.textContent =
@@ -258,6 +253,8 @@ function highlightZone() {
     ? currentLake.name + ' · ' + selected.name
     : '';
 
+  // updateLakeProfile() manages the visibility of map/profile layers.
+  // Removed the old "real" variable references which were undefined.
   updateLakeProfile();
 }
 
@@ -303,8 +300,7 @@ function renderEvidence() {
     return;
   }
 
-  // IMPORTANT: show evidence only for the selected zone.
-  // Do not fall back to a different hotspot.
+  // Only show evidence for the selected zone.
   const selected = dashboard.zones.find(
     item => item.zoneId === zone.value
   );
@@ -563,9 +559,7 @@ async function loadReadings() {
   const revision = ++readingRequest;
   const selectedLake = currentLake;
 
-  const feedback = document.querySelector(
-    '#reading-status'
-  );
+  const feedback = document.querySelector('#reading-status');
 
   feedback.textContent = 'Loading readings…';
 
@@ -665,7 +659,7 @@ function pickPhoto(file) {
 
 /* ===================== CITY MAP ===================== */
 
-function renderCity(viewport) {
+function renderCity(viewport, tileStyle = "street") {
   cityMap.dataset.zoom = viewport.zoom;
 
   if (currentLake?.kind === 'geographic') {
@@ -673,7 +667,8 @@ function renderCity(viewport) {
       cityTiles,
       currentLake.zones,
       markers,
-      viewport
+      viewport,
+      tileStyle
     );
     return;
   }
@@ -682,7 +677,8 @@ function renderCity(viewport) {
     cityTiles,
     cityPoints,
     cityMarkers,
-    viewport
+    viewport,
+    tileStyle
   );
 
   placeMarkers(
@@ -725,6 +721,27 @@ function renderCity(viewport) {
   }
 }
 
+/* ===================== CITY MAP CONTROLLER ===================== */
+
+const cityController = interactiveMap(
+  cityMap,
+  renderCity,
+  (viewport, x, y) => {
+    if (currentLake?.kind !== 'geographic') return;
+
+    const selected = sectorAt(
+      currentLake,
+      viewport,
+      x,
+      y
+    );
+
+    if (selected) {
+      selectShoreline(selected.id);
+    }
+  }
+);
+
 function selectShoreline(id) {
   if (zone.disabled) return;
 
@@ -759,6 +776,7 @@ function updateLakeProfile() {
   searchPanel.hidden = real;
   cityMarkers.hidden = real;
   landmarkLayer.hidden = real;
+  document.querySelector('#map-focus-selected').disabled = !real;
 
   if (!real) return;
 
@@ -824,6 +842,7 @@ function filterLakeList() {
 /* ===================== CITY EXPLORER ===================== */
 
 function buildCityExplorer() {
+  // Create city landmark labels
   for (const landmark of landmarks) {
     const label = textElement(
       'span',
@@ -832,34 +851,44 @@ function buildCityExplorer() {
     );
 
     label.dataset.mapId = landmark.id;
+    label.hidden = true;
+
     landmarkLayer.append(label);
   }
 
+  // Create lake pins and sidebar lake choices
   for (
     const lake of lakes
       .filter(item => item.kind === 'geographic')
-      .sort((a, b) =>
-        a.name.localeCompare(b.name)
-      )
+      .sort((a, b) => a.name.localeCompare(b.name))
   ) {
     const [latitude, longitude] = lake.center;
 
+    // Add lake coordinates to the overview map
     cityPoints.push({
       id: lake.id,
       latitude,
       longitude
     });
 
+    // Lake marker
     const pin = document.createElement('button');
 
     pin.type = 'button';
     pin.className = 'city-pin';
     pin.dataset.mapId = lake.id;
     pin.setAttribute('aria-label', lake.name);
-    pin.append(
-      textElement('span', lake.name)
-    );
+    pin.title = lake.name;
 
+    // Dot only - no lake name displayed over the map
+    const pinDot = document.createElement('span');
+
+    pinDot.className = 'city-pin-dot';
+    pinDot.setAttribute('aria-hidden', 'true');
+
+    pin.append(pinDot);
+
+    // Sidebar lake selection button
     const choice = textElement(
       'button',
       lake.name,
@@ -868,19 +897,19 @@ function buildCityExplorer() {
 
     choice.type = 'button';
     choice.dataset.mapId = lake.id;
-    choice.dataset.search =
-      (lake.name + ' ' + lake.locality)
-        .toLocaleLowerCase();
+    choice.dataset.search = (
+      lake.name + ' ' + lake.locality
+    ).toLocaleLowerCase();
 
+    // Click either the map pin or sidebar choice
     for (const button of [pin, choice]) {
       button.addEventListener('click', () => {
         if (lakeSelect.disabled) return;
 
         setLake(lake.id);
 
-        lakeProfile.querySelector(
-          '#close-lake'
-        ).focus({ preventScroll: true });
+        lakeProfile.querySelector('#close-lake')
+          .focus({ preventScroll: true });
 
         cityGrid.scrollIntoView({
           block: 'start'
@@ -888,6 +917,7 @@ function buildCityExplorer() {
       });
     }
 
+    // Add elements to the map and sidebar
     cityMarkers.append(pin);
     lakeChoices.append(choice);
   }
@@ -896,42 +926,14 @@ function buildCityExplorer() {
   cityController.redraw();
 }
 
-const cityController = interactiveMap(
-  cityMap,
-  renderCity,
-  (viewport, x, y) => {
-    if (
-      currentLake?.kind !== 'geographic' ||
-      viewport.zoom < 13
-    ) {
-      return;
-    }
-
-    const sector = sectorAt(
-      currentLake,
-      viewport,
-      x,
-      y
-    );
-
-    if (sector) {
-      selectShoreline(sector.id);
-    }
-  }
-);
-
 /* ===================== MAP RESET ===================== */
 
 function resetCity() {
   if (lakeSelect.disabled) return;
 
   if (currentLake?.kind === 'geographic') {
-    setLake('demo-lake');
-    lakeSearch.focus({ preventScroll: true });
-
-    document.querySelector(
-      '#city-title'
-    ).scrollIntoView({ block: 'start' });
+    cityController.fit(currentLake.zones, true);
+    cityMap.focus({ preventScroll: true });
   } else {
     cityController.fit();
     cityMap.focus({ preventScroll: true });
@@ -966,6 +968,140 @@ function setExpanded(expanded) {
   button.textContent = expanded ? '⤡' : '⤢';
 }
 
+/* ===================== MAP STYLE TOGGLE ===================== */
+const mapStyleButton = document.querySelector('#map-style-toggle');
+const mapAttribution = document.querySelector('.map-attribution');
+const mapStyles = ['street', 'satellite', 'hybrid'];
+const mapStyleLabels = {
+  street: 'Street',
+  satellite: 'Satellite',
+  hybrid: 'Hybrid'
+};
+function updateMapStyleControl(style) {
+  if (!mapStyleButton) return;
+  mapStyleButton.textContent = mapStyleLabels[style];
+  mapStyleButton.setAttribute('aria-label', 'Map style: ' + mapStyleLabels[style] + '. Activate to change.');
+  if (!mapAttribution) return;
+
+  mapAttribution.textContent = style === 'street'
+    ? '© OpenStreetMap contributors'
+    : style === 'hybrid'
+      ? 'Imagery and labels © Esri'
+      : 'Imagery © Esri';
+  mapAttribution.href = style === 'street'
+    ? 'https://www.openstreetmap.org/copyright'
+    : 'https://www.esri.com/en-us/legal/terms/full-master-agreement';
+}
+mapStyleButton?.addEventListener('click', () => {
+  const currentIndex = mapStyles.indexOf(cityController.getTileStyle());
+  const next = mapStyles[(currentIndex + 1) % mapStyles.length];
+  const active = cityController.setTileStyle(next);
+  updateMapStyleControl(active);
+});
+
+
+/* ===================== LOCAL DEMO SIGN-IN ===================== */
+const signInDialog = document.querySelector('#sign-in-dialog');
+const signInForm = document.querySelector('#sign-in-form');
+const signInName = document.querySelector('#sign-in-name');
+const signInOpen = document.querySelector('#sign-in-open');
+const signInClose = document.querySelector('#sign-in-close');
+const authStatus = document.querySelector('#auth-status');
+let storedDisplayName;
+try { storedDisplayName = localStorage.getItem('jalnetra-demo-name'); } catch { storedDisplayName = ''; }
+if (signInName && storedDisplayName) signInName.value = storedDisplayName;
+if (storedDisplayName && signInOpen) signInOpen.textContent = storedDisplayName + ' ↗';
+signInOpen?.addEventListener('click', () => signInDialog?.showModal());
+signInClose?.addEventListener('click', () => signInDialog?.close());
+signInForm?.addEventListener('submit', event => {
+  event.preventDefault();
+  const name = signInName?.value.trim();
+  if (!name) return;
+  try {
+    localStorage.setItem('jalnetra-demo-name', name);
+    if (authStatus) authStatus.textContent = 'Demo profile saved on this device. This is not an authenticated account.';
+  } catch {
+    if (authStatus) authStatus.textContent = 'Browser storage is unavailable. Your display name will last only for this page session.';
+  }
+  if (signInOpen) signInOpen.textContent = name + ' ↗';
+  signInDialog?.close();
+});
+
+/* ===================== COMMUNITY UPDATE LOG (DEVICE-LOCAL) ===================== */
+const civicForm = document.querySelector('#civic-update-form');
+const civicList = document.querySelector('#civic-update-list');
+const civicClear = document.querySelector('#civic-clear');
+const civicMessage = document.querySelector('#civic-status-message');
+const civicStorageKey = 'jalnetra-community-updates-v1';
+const civicRaisedDate = document.querySelector('#civic-raised-date');
+const civicStatusNames = {
+  raised: 'Raised',
+  acknowledged: 'Acknowledged',
+  'in-progress': 'Work in progress',
+  completed: 'Marked complete',
+  unverified: 'No update / unverified'
+};
+function localDateInputValue(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+}
+if (civicRaisedDate) civicRaisedDate.value = localDateInputValue();
+
+function renderCivicUpdates() {
+  if (!civicList) return;
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem(civicStorageKey) || '[]'); } catch { entries = []; }
+  if (!entries.length) { civicList.innerHTML = '<p class="hint">No updates yet. Add follow-ups and include a source link when available.</p>'; return; }
+  const safe = value => String(value || '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  civicList.innerHTML = entries.map(entry => {
+    const validSource = (() => { try { const u = new URL(entry.source); return ['http:','https:'].includes(u.protocol); } catch { return false; } })();
+    const link = validSource ? `<a href="${safe(entry.source)}" target="_blank" rel="noopener">Open reference ↗</a>` : '<span>No reference link supplied</span>';
+    return `<article class="civic-update-item"><div class="civic-update-top"><strong>${safe(entry.item)}</strong><span class="civic-status ${safe(entry.status)}">${safe(civicStatusNames[entry.status] || 'No update / unverified')}</span></div><p><strong>Location:</strong> ${safe(entry.location || 'Not specified')}</p><p><strong>Responsible agency:</strong> ${safe(entry.agency || 'Not specified')}</p><p><strong>Latest community update:</strong> ${safe(entry.note || 'No daily note entered.')}</p><div class="civic-update-meta"><span>Raised ${safe(entry.raisedDate || 'date not recorded')} · Updated ${safe(entry.date)}</span>${link}</div><small>Community-submitted; official status has not been independently verified.</small></article>`;
+  }).join('');
+}
+civicForm?.addEventListener('submit', event => {
+  event.preventDefault();
+  let entries = [];
+  try { entries = JSON.parse(localStorage.getItem(civicStorageKey) || '[]'); } catch { entries = []; }
+  const raisedDate = civicRaisedDate.value;
+  if (!raisedDate || raisedDate > localDateInputValue()) {
+    civicRaisedDate.setCustomValidity('Choose a valid date that is today or earlier.');
+    civicRaisedDate.reportValidity();
+    return;
+  }
+  civicRaisedDate.setCustomValidity('');
+  entries.unshift({
+    item: document.querySelector('#civic-item').value.trim(),
+    location: document.querySelector('#civic-location').value.trim(),
+    agency: document.querySelector('#civic-agency').value.trim(),
+    status: document.querySelector('#civic-status').value,
+    note: document.querySelector('#civic-note').value.trim(),
+    source: document.querySelector('#civic-source').value.trim(),
+    raisedDate,
+    date: new Date().toLocaleString('en-IN')
+  });
+  try {
+    localStorage.setItem(civicStorageKey, JSON.stringify(entries.slice(0, 40)));
+  } catch {
+    if (civicMessage) civicMessage.textContent = 'This device could not save the update. Check available browser storage and try again.';
+    return;
+  }
+  civicForm.reset();
+  civicRaisedDate.value = localDateInputValue();
+  if (civicMessage) civicMessage.textContent = 'Community update saved on this device.';
+  renderCivicUpdates();
+});
+civicClear?.addEventListener('click', () => {
+  if (confirm('Clear the community update log stored on this device?')) {
+    localStorage.removeItem(civicStorageKey);
+    if (civicMessage) civicMessage.textContent = 'This device’s community update log was cleared.';
+    renderCivicUpdates();
+  }
+});
+renderCivicUpdates();
+
 /* ===================== MAP EVENTS ===================== */
 
 lakeSearch.addEventListener(
@@ -992,6 +1128,17 @@ document.querySelector('#map-zoom-in').addEventListener(
 document.querySelector('#map-zoom-out').addEventListener(
   'click',
   () => cityController.zoomBy(-1)
+);
+
+document.querySelector('#map-focus-selected').addEventListener(
+  'click',
+  () => {
+    if (currentLake?.kind !== 'geographic' || !currentLake.center) return;
+    cityController.focusPoint({
+      latitude: currentLake.center[0],
+      longitude: currentLake.center[1]
+    }, cityController.getViewport()?.zoom);
+  }
 );
 
 document.querySelector('#map-reset').addEventListener(
@@ -1354,7 +1501,6 @@ function setLake(id) {
       new Option(item.name, item.id)
     );
 
-    // Concern zone now populated for demo AND geographic lakes.
     concernZone.add(
       new Option(item.name, item.id)
     );
@@ -1377,7 +1523,17 @@ function setLake(id) {
 
     marker.addEventListener(
       'click',
-      () => selectShoreline(item.id)
+      () => {
+        selectShoreline(item.id);
+
+        // For geographic maps, also center on the selected sector.
+        if (geographic) {
+          cityController.focusPoint(
+            item,
+            cityController.getViewport()?.zoom
+          );
+        }
+      }
     );
 
     markers.append(marker);
@@ -1396,7 +1552,19 @@ function setLake(id) {
 
       direction.addEventListener(
         'click',
-        () => selectShoreline(item.id)
+        () => {
+          selectShoreline(item.id);
+
+          // Center the map on this sector without resetting the map.
+          const currentViewport = cityController.getViewport();
+
+          if (currentViewport) {
+            cityController.focusPoint(
+              item,
+              currentViewport.zoom
+            );
+          }
+        }
       );
 
       sectorChoices.append(direction);
@@ -1990,3 +2158,26 @@ loadMode()
       'error'
     )
   );
+
+/* ==========================================
+   JALNETRA MAP DIRECTION CONTROLS
+========================================== */
+
+document.querySelectorAll('.direction-pad [data-pan]').forEach(button => {
+  button.addEventListener('click', () => {
+    const direction = button.dataset.pan;
+
+    const directionMap = {
+      up: 'north',
+      down: 'south',
+      left: 'west',
+      right: 'east'
+    };
+
+    const mappedDirection = directionMap[direction];
+
+    if (mappedDirection) {
+      cityController.panDirection(mappedDirection, 140);
+    }
+  });
+});

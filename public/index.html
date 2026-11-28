@@ -22,8 +22,8 @@
   <!-- ================= HEADER ================= -->
   <header class="top">
     <a class="brand" href="/" aria-label="JalNetra home">
-      <span class="brand-icon" aria-hidden="true">≈</span>
-      <span>JalNetra</span>
+      <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 4C15 12 8 17 8 24a12 12 0 0 0 24 0C32 17 25 12 20 4Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 25c3-6 8-9 14-10-1 7-5 12-12 13M14 29l12-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+      <span class="brand-wordmark">JalNetra</span>
     </a>
 
     <div class="header-right">
@@ -31,6 +31,7 @@
         <span></span>
         Local mode
       </span>
+      <button class="auth-trigger" id="sign-in-open" type="button">Sign in <span aria-hidden="true">↗</span></button>
     </div>
   </header>
 
@@ -101,8 +102,20 @@
             ></div>
           </div>
 
+          <!-- MAP DIRECTION CONTROLS -->
+          <div class="direction-pad" data-direction-target="city-map" aria-label="Map direction controls">
+            <button type="button" data-pan="up" aria-label="Pan north" title="North">N</button>
+            <div class="direction-row">
+              <button type="button" data-pan="left" aria-label="Pan west" title="West">W</button>
+              <span aria-hidden="true">✦</span>
+              <button type="button" data-pan="right" aria-label="Pan east" title="East">E</button>
+            </div>
+            <button type="button" data-pan="down" aria-label="Pan south" title="South">S</button>
+          </div>
+
           <!-- MAP TOOLBAR -->
           <div class="city-controls" aria-label="Map controls">
+            <button id="map-style-toggle" type="button" aria-label="Map style: Street. Activate to change." title="Change map style">Street</button>
             <button id="map-zoom-in" type="button" aria-label="Zoom in" title="Zoom in">
               +
             </button>
@@ -111,7 +124,11 @@
               &minus;
             </button>
 
-            <button id="map-reset" type="button" aria-label="Show all Bengaluru" title="Show all Bengaluru">
+            <button id="map-focus-selected" type="button" aria-label="Focus selected lake" title="Focus selected lake" disabled>
+              ◎
+            </button>
+
+            <button id="map-reset" type="button" aria-label="Reset map view" title="Reset map view">
               &#8962;
             </button>
 
@@ -125,6 +142,8 @@
               &#10530;
             </button>
           </div>
+
+          <p id="city-map-status" class="map-tile-status" role="status" aria-live="polite" data-state="loading">Loading map tiles…</p>
 
           <a
             class="map-attribution"
@@ -461,8 +480,18 @@
             © OpenStreetMap contributors
           </a>
 
+        <!-- MAP DIRECTION CONTROLS -->
+        <div class="direction-pad direction-pad-lake" data-direction-target="lake-map" aria-label="Map direction controls">
+          <button type="button" data-pan="up" aria-label="Pan north" title="North">N</button>
+          <div class="direction-row">
+            <button type="button" data-pan="left" aria-label="Pan west" title="West">W</button>
+            <span aria-hidden="true">✦</span>
+            <button type="button" data-pan="right" aria-label="Pan east" title="East">E</button>
+          </div>
+          <button type="button" data-pan="down" aria-label="Pan south" title="South">S</button>
         </div>
 
+        </div>
 
         <!-- MAP INFORMATION -->
         <p id="map-help" class="map-help">
@@ -503,8 +532,8 @@
         <div class="card-head">
 
           <div>
-            <p class="eyebrow">CONTRIBUTE DATA</p>
-            <h2 id="form-title" tabindex="-1">New observation</h2>
+            <p class="eyebrow">OBSERVATION DATA</p>
+            <h2 id="form-title" tabindex="-1">Report a shoreline observation</h2>
             <p>Submit a photo and details from the shoreline.</p>
           </div>
 
@@ -651,13 +680,32 @@
     <div id="city-evidence" class="card history" hidden></div>
 
 
+    <!-- CIVIC FOLLOW-UP TRACKER -->
+    <section class="card civic-tracker" aria-labelledby="civic-tracker-title">
+      <div class="card-head civic-head"><div><p class="eyebrow">CIVIC FOLLOW-UP</p><h2 id="civic-tracker-title">Community action log</h2><p>Track a concern after it is raised. Entries are community-maintained and are not official government confirmations.</p></div><span class="civic-note-pill">Community tracked</span></div>
+      <form id="civic-update-form" class="civic-update-form">
+        <label>Concern / work item<input id="civic-item" maxlength="120" placeholder="e.g. Waste removal near east shore" required></label>
+        <label>Lake / location<input id="civic-location" maxlength="120" placeholder="Lake name and nearby shoreline" required></label>
+        <label>Agency / authority<input id="civic-agency" maxlength="120" placeholder="e.g. BBMP / lake authority (if known)"></label>
+        <label>Status<select id="civic-status"><option value="raised">Raised</option><option value="acknowledged">Acknowledged</option><option value="in-progress">Work in progress</option><option value="completed">Marked complete</option><option value="unverified">No update / unverified</option></select></label>
+        <label>Date concern was raised<input id="civic-raised-date" type="date" required></label>
+        <label>Daily update<textarea id="civic-note" rows="2" maxlength="500" placeholder="Add what changed today, if known..."></textarea></label>
+        <label>Reference link (optional)<input id="civic-source" type="url" placeholder="https://... (official source, if available)"></label>
+        <button class="primary civic-submit" type="submit">Add update <span aria-hidden="true">＋</span></button>
+      </form>
+      <p id="civic-status-message" class="feedback" role="status" aria-live="polite"></p>
+      <div id="civic-update-list" class="civic-update-list" aria-live="polite"><p class="hint">No updates yet. Add follow-ups and include a source link when available.</p></div>
+      <button id="civic-clear" type="button" class="secondary civic-clear">Clear this device's log</button>
+    </section>
+
+
     <!-- ================= ANALYTICS ================= -->
     <section class="card history analytics-section" aria-labelledby="readings-title">
 
       <div class="card-head">
 
         <div>
-          <p class="eyebrow">DATA OVERVIEW</p>
+          <p class="eyebrow">WATER DATA &amp; TRENDS</p>
           <h2 id="readings-title">Water readings</h2>
           <p>Reported measurements from the selected lake and shoreline zone.</p>
         </div>
@@ -828,11 +876,24 @@
   </main>
 
 
+  <!-- Prototype sign-in: local display name only, not real authentication -->
+  <dialog id="sign-in-dialog" class="auth-dialog"><form id="sign-in-form"><button class="auth-close" id="sign-in-close" type="button" aria-label="Close">×</button><span class="brand-icon auth-logo" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 4C15 12 8 17 8 24a12 12 0 0 0 24 0C32 17 25 12 20 4Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 25c3-6 8-9 14-10-1 7-5 12-12 13M14 29l12-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><p class="eyebrow">JALNETRA ACCOUNT</p><h2>Welcome</h2><p class="auth-disclaimer">Prototype sign-in saves a display name on this device only. This is not secure account authentication.</p><label for="sign-in-name">Display name</label><input id="sign-in-name" maxlength="40" autocomplete="nickname" placeholder="Your name" required><button class="primary auth-submit" type="submit">Continue →</button><p id="auth-status" role="status"></p></form></dialog>
+
   <!-- ================= FOOTER ================= -->
   <footer class="site-footer">
     <p>JalNetra · LakeLens AI</p>
-    <p>Visual observations support awareness. They do not replace laboratory water testing.</  p>
+    <p>Visual observations support awareness. They do not replace laboratory water testing.</p>
   </footer>
 
 </body>
 </html>
+<div class="map-compass">
+  <button data-map-direction="north" title="Move North">↑</button>
+
+  <div class="compass-middle">
+    <button data-map-direction="west" title="Move West">←</button>
+    <button data-map-direction="east" title="Move East">→</button>
+  </div>
+
+  <button data-map-direction="south" title="Move South">↓</button>
+</div>
