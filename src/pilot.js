@@ -10,6 +10,7 @@ const routes = {
   guest: 'POST', catalog: 'GET', enroll: 'POST', members: 'GET POST', reports: 'GET', upload: 'POST', concerns: 'GET POST',
   'demo-concern': 'POST', 'demo-run': 'GET POST', conditions: 'GET', photo: 'GET', analyze: 'POST', preliminary: 'POST', review: 'POST', hotspots: 'GET', complaint: 'POST',
   community: 'GET POST',
+  drives: 'GET', 'drive-proposals': 'GET POST',
 };
 const validUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const demoCases = ['foam-inlet', 'algae', 'dumping'];
@@ -87,7 +88,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
     const bearer = input.headers.get('authorization');
     const communityRead = action === 'community' && input.method === 'GET';
     const authAction = ['status', 'signup', 'signin', 'refresh', 'recover', 'guest', 'catalog', 'conditions', 'demo-concern'].includes(action)
-      || (communityRead && !bearer);
+      || ((communityRead || action === 'drives') && !bearer);
     if (!authAction && !tokenPattern.test(bearer ?? '')) {
       return reply(401, { error: { code: 'PILOT_SIGN_IN_REQUIRED', message: 'Sign in to continue.' } });
     }
@@ -115,7 +116,7 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
         }
         if ([401, 403].includes(upstream.status)) throw new PilotError(upstream.status, 'PILOT_ACCESS_DENIED', 'Your account cannot perform this action. Sign in again if your session expired.');
         if (upstream.status === 409 || data.code === '23505') throw new PilotError(409, 'PILOT_CONFLICT', 'This record already exists. Refresh and try again.');
-        if (action === 'community' && ['22023', 'P0002'].includes(data.code)) {
+        if (['community', 'drive-proposals'].includes(action) && ['22023', 'P0002'].includes(data.code)) {
           throw new PilotError(data.code === 'P0002' ? 404 : 400, 'COMMUNITY_REJECTED', data.message);
         }
         if (upstream.status === 429) throw new PilotError(429, 'PILOT_RATE_LIMIT', 'Too many requests. Wait and try again.');
@@ -163,6 +164,16 @@ export function createPilotHandler({ url, publishableKey, request = fetch, apiKe
     }
 
     try {
+      if (action === 'drives') {
+        return reply(200, await send('/rest/v1/rpc/pilot_drive_schedule', { p_today: incoming.searchParams.get('today') === '1' }));
+      }
+      if (action === 'drive-proposals') {
+        if (input.method === 'GET') return reply(200, await result('/rest/v1/rpc/pilot_drive_proposals'));
+        const { action: p_action, ...p_data } = (await jsonInput(input)) ?? {};
+        requireValue(['submit', 'withdraw', 'publish', 'decline'].includes(p_action), 'INVALID_DRIVE_ACTION', 'Choose a valid drive action.');
+        await send('/rest/v1/rpc/pilot_drive_change', { p_action, p_data });
+        return reply(200, { saved: true });
+      }
       if (action === 'community') {
         const p_lake = incoming.searchParams.get('lakeId');
         requireValue(validUuid.test(p_lake ?? ''), 'INVALID_LAKE', 'Choose a lake.');

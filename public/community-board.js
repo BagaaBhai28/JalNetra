@@ -83,33 +83,21 @@ export function renderCommunityAlerts(panel, alerts, change) {
   panel.replaceChildren(heading, alerts.length ? entries : element('p', 'No new alerts from your subscribed lakes.'));
 }
 
-export function renderCommunityBoard(panel, board, { change, sector, showPhoto }) {
-  const { operator, campaigns, adoptions, actions, reports, impact } = board;
+export function renderCleanupManagement(panel, campaigns, change) {
   panel.replaceChildren();
-  const reportChoices = candidates => candidates.map(row => [row.id, sector(row.zone_id) + ' · ' + date(row.observed_at)]);
   const action = (label, name, data) => button(label, control => change(control, name, data));
-  const submit = name => (control, data) => change(control, name, data);
-  if (!operator) {
-    panel.append(action(board.subscribed ? 'Unsubscribe from lake alerts' : 'Subscribe to lake alerts',
-      board.subscribed ? 'unsubscribe' : 'subscribe'));
-  }
-
-  const cleanup = heading(panel, 'Community cleanups');
+  const cleanup = heading(panel, 'Manage published cleanups');
   if (!campaigns.length) cleanup.append(element('p', 'No cleanups have been scheduled for this lake.'));
-  if (operator) form(cleanup, 'Publish authorised cleanup', [
+  form(cleanup, 'Publish authorised cleanup', [
     field('title', 'Campaign title'), field('details', 'Meeting point and safety instructions', { long: true }),
     field('startsAt', 'Start date and time (device time)', { type: 'datetime-local' }),
-  ], submit('campaign_create'), { id: crypto.randomUUID() });
+  ], (control, data) => change(control, 'campaign_create', data), { id: crypto.randomUUID() });
   for (const campaign of campaigns) {
     const row = record(cleanup, campaign.title, campaign.details,
       date(campaign.starts_at) + ' · ' + statuses[campaign.status] + ' · ' + campaign.registrations + ' registered');
     const id = campaign.id;
     if (campaign.status !== 'open') continue;
     const started = Date.parse(campaign.starts_at) <= Date.now();
-    if (!operator && !started) {
-      row.append(action(campaign.joined ? 'Cancel registration' : 'Register to volunteer', campaign.joined ? 'leave' : 'join', { id }));
-    }
-    if (!operator) continue;
     if (started) {
       for (const volunteer of campaign.roster ?? []) {
         const attendee = element('p', 'Volunteer ' + volunteer.id + ' ');
@@ -120,6 +108,18 @@ export function renderCommunityBoard(panel, board, { change, sector, showPhoto }
       row.append(action('Complete cleanup', 'campaign_finish', { id }));
     }
     row.append(action('Cancel cleanup', 'campaign_cancel', { id }));
+  }
+}
+
+export function renderCommunityBoard(panel, board, { change, sector, showPhoto }) {
+  const { operator, adoptions, actions, reports, impact } = board;
+  panel.replaceChildren();
+  const reportChoices = candidates => candidates.map(row => [row.id, sector(row.zone_id) + ' · ' + date(row.observed_at)]);
+  const action = (label, name, data) => button(label, control => change(control, name, data));
+  const submit = name => (control, data) => change(control, name, data);
+  if (!operator) {
+    panel.append(action(board.subscribed ? 'Unsubscribe from lake alerts' : 'Subscribe to lake alerts',
+      board.subscribed ? 'unsubscribe' : 'subscribe'));
   }
 
   const adoption = heading(panel, 'Lake adoption');

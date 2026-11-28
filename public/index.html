@@ -7,6 +7,7 @@
   <title>JalNetra � Lake observations</title>
   <link rel="stylesheet" href="/style.css?v=operator-demo">
   <script type="module" src="/app.js?v=operator-map"></script>
+  <script type="module" src="/community-drives.js"></script>
 </head>
 <body>
   <header class="top">
@@ -19,6 +20,12 @@
       <h1 id="title">Report a shoreline observation</h1>
       <p id="intro-description">Choose a lake and shoreline zone, then share a photo and any readings with the lake operator.</p>
       <p class="pilot-actions"><a id="shared-reporting" href="/pilot.html?role=citizen" >Citizen lake map and guest reporting</a><a id="operator-reporting" href="/pilot.html?role=operator#pilot-operator">Operator sign in</a><a id="try-demo" href="/?demo=1" hidden>Try demo</a><a id="leave-demo" href="/" hidden>Back to shared reporting</a></p>
+    </section>
+    <p><a href="/community.html">Community drives</a></p>
+    <section class="card history" id="today-drives" aria-labelledby="today-drives-title" hidden>
+      <div class="card-head"><div><h2 id="today-drives-title">Today’s cleanup drives</h2><p id="today-drives-date"></p></div>
+        <a href="/community.html">View drives and register</a></div>
+      <div id="today-drives-list"></div>
     </section>
     <section class="card city-explorer" id="city-explorer" aria-labelledby="city-title">
       <div class="card-head"><div><h2 id="city-title">Bengaluru lake map</h2><p>Drag to explore or zoom in to see more lake names.</p></div><button id="map-expand" class="secondary" type="button" aria-controls="city-grid" aria-expanded="false">Expand map</button></div>

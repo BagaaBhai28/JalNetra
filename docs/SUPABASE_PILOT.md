@@ -30,6 +30,10 @@ For Devanahalli Lake, the draft suggests the [Devanahalli Town Municipal Council
 
 ## Community action
 
+Open `/community.html` to find cleanups and register as a volunteer. Community groups and organizations can create a confirmed email account and propose a drive with a lake, start time, meeting point and safety instructions. An assigned lake operator approves the proposal on the same page. The citizen homepage shows scheduled drives for the current Bengaluru date.
+
+Before releasing the separate page, apply the community drive page migration. Organizer registration uses the existing `/pilot.html` email confirmation callback, which links back to community sign in. Run `supabase/tests/community_drive_page.sql` to check publishing permissions and Bengaluru date boundaries.
+
 - **Cleanups.** Assigned operators publish authorised events with meeting and safety instructions. Citizens register before the event. Operators can record attendance after the start time and then complete the event.
 - **Lake adoption.** Citizens submit a group and stewardship plan. Assigned operators approve, decline or end an adoption. Approved plans appear on the lake's community board.
 - **Restoration.** An operator starts with a human-verified pollution photo, assigns a responsible team and records work completed. A citizen uploads a new photo from the same sector and submits it for verification in the tracker. The operator opens the private evidence and accepts or rejects it.
